@@ -4,7 +4,7 @@ use codec::{Decode, Encode};
 
 use frame_support::{
     decl_error, decl_event, decl_module, decl_storage,
-    dispatch::{DispatchResult, DispatchError},
+    dispatch::{DispatchError, DispatchResult},
     traits::Randomness,
 };
 use frame_system::ensure_signed;
@@ -41,7 +41,8 @@ decl_storage! {
 decl_event!(
     pub enum Event<T>
     where
-        AccountId = <T as frame_system::Config>::AccountId, Hash = <T as frame_system::Config>::Hash
+        AccountId = <T as frame_system::Config>::AccountId,
+        Hash = <T as frame_system::Config>::Hash,
     {
         CollectionCreated(AccountId, Hash),
     }
@@ -53,7 +54,6 @@ decl_error! {
     }
 }
 
-
 decl_module! {
     pub struct Module<T: Config> for enum Call where origin: T::Origin {
         type Error = Error<T>;
@@ -61,33 +61,33 @@ decl_module! {
         fn deposit_event() = default;
 
         #[weight = 10_000]
-        pub fn create_collection(origin, uri: Vec<u8>) -> DispatchResult {
+        pub fn create_collection(origin, uri: Vec<u8>) -> DispatchResult  {
             let who = ensure_signed(origin)?;
-            let id = Self::generate_collection_id()?;
-           
+
+            let nonce = Nonce::try_mutate(|nonce| -> Result<u128, DispatchError> {
+                *nonce = nonce.checked_add(1).ok_or(Error::<T>::NumOverflow)?;
+                Ok(*nonce)
+            })?;
+
+            let collection_id = Self::generate_collection_id(nonce)?;
+
             let collection = CollectionInfo {
                 owner: who.clone(),
                 total_supply: 0,
                 uri,
             };
 
-            Collections::<T>::insert(id, collection);
-            Self::deposit_event(RawEvent::CollectionCreated(who, id));
+            Collections::<T>::insert(collection_id, collection);
+
+            Self::deposit_event(RawEvent::CollectionCreated(who, collection_id));
 
             Ok(())
         }
-
-
     }
 }
 
 impl<T: Config> Module<T> {
-    fn generate_collection_id() -> Result<T::Hash, DispatchError>   {
-        let nonce = Nonce::try_mutate(|nonce| -> Result<u128, DispatchError> {
-			*nonce = nonce.checked_add(1).ok_or(Error::<T>::NumOverflow)?;
-			Ok(*nonce)
-		})?;
-
+    fn generate_collection_id(nonce: u128) -> Result<T::Hash, DispatchError> {
         let seed = T::RandomnessSource::random_seed();
         let collection_id = T::Hashing::hash(&(PALLET_ID, seed, nonce).encode());
 
@@ -143,5 +143,4 @@ impl<T: Config> Module<T> {
 
         Ok(())
     }
-
 }
