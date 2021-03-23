@@ -6,6 +6,7 @@ use frame_support::{
 };
 use frame_system::ensure_signed;
 use sp_std::vec::Vec;
+use pallet_collection;
 
 #[cfg(test)]
 mod mock;
@@ -27,7 +28,7 @@ pub struct TokenInfo<AccountId> {
     pub uri: Vec<u8>,
 }
 
-pub trait Config: frame_system::Config {
+pub trait Config: frame_system::Config + pallet_collection::Config {
     /// Because this pallet emits events, it depends on the runtime's definition of an event.
     type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 }

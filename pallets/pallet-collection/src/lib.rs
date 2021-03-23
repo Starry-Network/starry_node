@@ -5,7 +5,7 @@ use codec::{Decode, Encode};
 use frame_support::{
     decl_error, decl_event, decl_module, decl_storage,
     dispatch::{DispatchResult, DispatchError},
-    traits::{Get, Randomness},
+    traits::Randomness,
 };
 use frame_system::ensure_signed;
 use sp_runtime::{traits::Hash, ModuleId};
@@ -93,4 +93,55 @@ impl<T: Config> Module<T> {
 
         Ok(collection_id)
     }
+
+    // pub fn create_collection(who: T::AccountId, uri: Vec<u8>) -> Result<T::Hash, DispatchError> {
+    //     let id = Self::generate_collection_id()?;
+
+    //     let collection = CollectionInfo {
+    //         owner: who,
+    //         total_supply: 0,
+    //         uri,
+    //     };
+
+    //     Collections::<T>::insert(id, collection);
+
+    //     Ok(id)
+    // }
+
+    pub fn add_total_supply(collection_id: T::Hash, amount: u128) -> DispatchResult {
+        let collection = Self::collections(collection_id);
+
+        let new_total_supply = collection
+            .total_supply
+            .checked_add(amount)
+            .ok_or(Error::<T>::NumOverflow)?;
+
+        let new_collection = CollectionInfo {
+            total_supply: new_total_supply,
+            ..collection
+        };
+
+        Collections::<T>::insert(collection_id, new_collection);
+
+        Ok(())
+    }
+
+    pub fn sub_total_supply(collection_id: T::Hash, amount: u128) -> DispatchResult {
+        let collection = Self::collections(collection_id);
+
+        let new_total_supply = collection
+            .total_supply
+            .checked_sub(amount)
+            .ok_or(Error::<T>::NumOverflow)?;
+
+        let new_collection = CollectionInfo {
+            total_supply: new_total_supply,
+            ..collection
+        };
+
+        Collections::<T>::insert(collection_id, new_collection);
+
+        Ok(())
+    }
+
 }

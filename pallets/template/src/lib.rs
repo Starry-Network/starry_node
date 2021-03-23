@@ -83,7 +83,7 @@ decl_module! {
 
 		#[weight = 10_000]
 		pub fn make_decision(origin) -> dispatch::DispatchResult {
-			let who = ensure_signed(origin)?;
+			let _who = ensure_signed(origin)?;
 			// Choice::put(Choices::None);
 			let hello = Hello {
 				t:1,

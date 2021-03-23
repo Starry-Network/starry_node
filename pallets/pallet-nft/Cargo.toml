@@ -22,6 +22,7 @@ version = '2.0.0'
 frame-support = { default-features = false, version = '3.0.0' }
 frame-system = { default-features = false, version = '3.0.0' }
 sp-std = { version = "3.0.0", default-features = false }
+pallet-collection = { path="../pallet-collection", default-features = false, version = '3.0.0'}
 
 [dev-dependencies]
 serde = { version = "1.0.119" }
@@ -33,7 +34,8 @@ sp-runtime = { default-features = false, version = '3.0.0' }
 default = ['std']
 std = [
     'codec/std',
-    "sp-std/std",
+    'sp-std/std',
     'frame-support/std',
     'frame-system/std',
+    'pallet-collection/std', 
 ]

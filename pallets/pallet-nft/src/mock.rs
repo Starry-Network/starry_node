@@ -5,7 +5,10 @@ use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup}, testing::Header,
 };
 use frame_system as system;
-
+use frame_support::{
+	traits::TestRandomness,
+};
+use pallet_collection as pallet_collection;
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 
@@ -18,6 +21,7 @@ frame_support::construct_runtime!(
 	{
 		System: frame_system::{Module, Call, Config, Storage, Event<T>},
 		NFTModule: pallet_nft::{Module, Call, Storage, Event<T>},
+		CollectionModule: pallet_collection::{Module, Call, Storage, Event<T>},
 	}
 );
 
@@ -55,7 +59,31 @@ impl pallet_nft::Config for Test {
 	type Event = Event;
 }
 
+
+impl pallet_collection::Config for Test {
+	type Event = Event;
+	type RandomnessSource = TestRandomness;
+}
+
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
 	system::GenesisConfig::default().build_storage::<Test>().unwrap().into()
 }
+
+
+// pub struct TestRandomness<T>(sp_std::marker::PhantomData<T>);
+
+// impl<Output: codec::Decode + Default, T> frame_support::traits::Randomness<Output>
+// 	for TestRandomness<T>
+// where
+// 	T: frame_system::Config,
+// {
+// 	fn random(subject: &[u8]) -> (Output) {
+// 		use sp_runtime::traits::TrailingZeroInput;
+
+// 		(
+// 			Output::decode(&mut TrailingZeroInput::new(subject)).unwrap_or_default(),
+// 			frame_system::Pallet::<T>::block_number(),
+// 		)
+// 	}
+// }

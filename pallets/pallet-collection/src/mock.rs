@@ -1,6 +1,9 @@
 use crate as pallet_template;
 use sp_core::H256;
 use frame_support::parameter_types;
+use frame_support::{
+	traits::TestRandomness,
+};
 use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup}, testing::Header,
 };
@@ -18,7 +21,6 @@ frame_support::construct_runtime!(
 	{
 		System: frame_system::{Module, Call, Config, Storage, Event<T>},
 		TemplateModule: pallet_template::{Module, Call, Storage, Event<T>},
-		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Module, Call, Storage},
 	}
 );
 
@@ -54,7 +56,7 @@ impl system::Config for Test {
 
 impl pallet_template::Config for Test {
 	type Event = Event;
-	type RandomnessSource = RandomnessCollectiveFlip;
+	type RandomnessSource = TestRandomness;
 }
 
 // Build genesis storage according to the mock runtime.
