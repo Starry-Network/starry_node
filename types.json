@@ -1,0 +1,30 @@
+{
+    "Address": "MultiAddress",
+    "LookupSource": "MultiAddress",
+    "PerDispatchClassU32": {
+        "normal": "u32",
+        "operational": "u32",
+        "mandatory": "u32"
+    },
+    "BlockLength": {
+        "max": "PerDispatchClassU32"
+    },
+    "CollectionInfo": {
+        "owner": "AccountId",
+        "uri": "Vec<u8>",
+        "total_supply": "u128"
+    },
+    "TokenInfo": {
+        "end_idx": "u128",
+	    "owner": "AccountId",
+	    "uri": "Vec<u8>"
+    },
+    "CollectionId": "u128",
+    "StartIdx": "u128",
+    "SubStartIdx": "u128",
+    "MintAmount": "u128",
+    "Balance": "u128",
+    "SubTokenId": "u128",
+
+    "SubTokenInfo": {}
+}
