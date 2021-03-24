@@ -87,7 +87,7 @@ decl_module! {
 }
 
 impl<T: Config> Module<T> {
-    fn generate_collection_id(nonce: u128) -> Result<T::Hash, DispatchError> {
+    pub fn generate_collection_id(nonce: u128) -> Result<T::Hash, DispatchError> {
         let seed = T::RandomnessSource::random_seed();
         let collection_id = T::Hashing::hash(&(PALLET_ID, seed, nonce).encode());
 
@@ -108,39 +108,40 @@ impl<T: Config> Module<T> {
     //     Ok(id)
     // }
 
-    pub fn add_total_supply(collection_id: T::Hash, amount: u128) -> DispatchResult {
+    pub fn add_total_supply(collection_id: T::Hash, amount: u128) -> Result<u128, DispatchError> {
         let collection = Self::collections(collection_id);
 
-        let new_total_supply = collection
+        let total_supply = collection
             .total_supply
             .checked_add(amount)
             .ok_or(Error::<T>::NumOverflow)?;
 
         let new_collection = CollectionInfo {
-            total_supply: new_total_supply,
+            total_supply,
             ..collection
         };
 
         Collections::<T>::insert(collection_id, new_collection);
 
-        Ok(())
+        Ok(total_supply)
     }
 
-    pub fn sub_total_supply(collection_id: T::Hash, amount: u128) -> DispatchResult {
+    pub fn sub_total_supply(collection_id: T::Hash, amount: u128) -> Result<u128, DispatchError> {
         let collection = Self::collections(collection_id);
 
-        let new_total_supply = collection
+        let total_supply = collection
             .total_supply
             .checked_sub(amount)
             .ok_or(Error::<T>::NumOverflow)?;
 
+
         let new_collection = CollectionInfo {
-            total_supply: new_total_supply,
+            total_supply,
             ..collection
         };
 
         Collections::<T>::insert(collection_id, new_collection);
 
-        Ok(())
+        Ok(total_supply)
     }
 }

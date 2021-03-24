@@ -5,21 +5,14 @@ use frame_support::{
     decl_error, decl_event, decl_module, decl_storage, dispatch::DispatchResult, ensure,
 };
 use frame_system::ensure_signed;
-use sp_std::vec::Vec;
 use pallet_collection;
+use sp_std::vec::Vec;
 
 #[cfg(test)]
 mod mock;
 
 #[cfg(test)]
 mod tests;
-
-#[derive(Encode, Decode, Default, Clone, PartialEq)]
-pub struct CollectionInfo<AccountId> {
-    pub owner: AccountId,
-    pub uri: Vec<u8>,
-    pub total_supply: u128,
-}
 
 #[derive(Encode, Decode, Default, Clone, PartialEq)]
 pub struct TokenInfo<AccountId> {
@@ -35,19 +28,14 @@ pub trait Config: frame_system::Config + pallet_collection::Config {
 
 decl_storage! {
     trait Store for Module<T: Config> as NFTModule {
-        pub LastCollectionId get(fn last_collection_id): u128;
-
         // collection_id => nft_id
-        pub LastTokenId get(fn last_token_id): map hasher(blake2_128_concat) u128 => u128;
-
-        // collection_id => collection_info
-        pub Collections get(fn collections): map hasher(blake2_128_concat) u128 => CollectionInfo<T::AccountId>;
+        pub LastTokenId get(fn last_token_id): map hasher(blake2_128_concat) T::Hash => u128;
 
         // (collection_id, address) => balance;
-        pub AddressBalances get (fn address_balances): map hasher(blake2_128_concat) (u128, T::AccountId) => u128;
+        pub AddressBalances get (fn address_balances): map hasher(blake2_128_concat) (T::Hash, T::AccountId) => u128;
 
         // (collection_id, start_idx) => nft_info
-        pub Tokens get(fn tokens): map hasher(blake2_128_concat) (u128, u128) =>  TokenInfo<T::AccountId>;
+        pub Tokens get(fn tokens): map hasher(blake2_128_concat) (T::Hash, u128) =>  TokenInfo<T::AccountId>;
     }
 }
 
@@ -55,18 +43,16 @@ decl_event!(
     pub enum Event<T>
     where
         AccountId = <T as frame_system::Config>::AccountId,
+        Hash = <T as frame_system::Config>::Hash,
     {
-        // [CollectionId, owner]
-        CollectionCreated(AccountId, u128),
-
         // [sender, collection_id, start_idx, end_idx, collection_total_supply]
-        TokenMinted(AccountId, u128, u128, u128, u128),
+        TokenMinted(AccountId, Hash, u128, u128, u128),
 
         // [sender, receiver, amount, collection_id, start_idx]
-        TokenTransferred(AccountId, AccountId, u128, u128, u128),
+        TokenTransferred(AccountId, AccountId, u128, Hash, u128),
 
-        // [sender, amount, collection_id, start_idx]
-        TokenBurned(AccountId, u128, u128, u128),
+        // [sender, amount, collection_id, start_idx, total_supply]
+        TokenBurned(AccountId, u128, Hash, u128, u128),
     }
 );
 
@@ -89,27 +75,7 @@ decl_module! {
         fn deposit_event() = default;
 
         #[weight = 10_000]
-        pub fn create_collection(origin, uri: Vec<u8>) -> DispatchResult {
-            let who = ensure_signed(origin)?;
-            // let id = LastCollectionId::get().checked_add(1).ok_or(Error::<T>::NumOverflow)?;
-            let id = if LastCollectionId::exists() {
-                LastCollectionId::get().checked_add(1).ok_or(Error::<T>::NumOverflow)?
-            } else {0};
-
-            LastCollectionId::put(id);
-            let collection = CollectionInfo {
-                owner: who.clone(),
-                total_supply: 0,
-                uri,
-            };
-            Collections::<T>::insert(id, collection);
-            Self::deposit_event(RawEvent::CollectionCreated(who, id));
-
-            Ok(())
-        }
-
-        #[weight = 10_000]
-        pub fn mint(origin, collection_id: u128, uri: Vec<u8>) -> DispatchResult {
+        pub fn mint(origin, collection_id: T::Hash, uri: Vec<u8>) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
             Self::_mint(who, collection_id, 1, uri)?;
@@ -118,17 +84,18 @@ decl_module! {
         }
 
         #[weight = 10_000]
-        pub fn batch_mint(origin, collection_id: u128, amount: u128, uri: Vec<u8>) -> DispatchResult {
+        pub fn batch_mint(origin, collection_id: T::Hash, uri: Vec<u8>, amount: u128) -> DispatchResult {
             ensure!(amount >= 1, Error::<T>::AmountLessThanOne);
 
-              let who = ensure_signed(origin)?;
+            let who = ensure_signed(origin)?;
+
             Self::_mint(who, collection_id, amount, uri)?;
 
             Ok(())
         }
 
         #[weight = 10_000]
-        pub fn transfer(origin, receiver: T::AccountId, collection_id: u128, start_idx: u128) -> DispatchResult {
+        pub fn transfer(origin, receiver: T::AccountId, collection_id: T::Hash, start_idx: u128) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
             Self::_transfer(who, receiver, collection_id, start_idx, 1)?;
@@ -136,7 +103,7 @@ decl_module! {
         }
 
         #[weight = 10_000]
-        pub fn batch_transfer(origin, receiver: T::AccountId, collection_id: u128, start_idx: u128, amount: u128) -> DispatchResult {
+        pub fn batch_transfer(origin, receiver: T::AccountId, collection_id: T::Hash, start_idx: u128, amount: u128) -> DispatchResult {
             ensure!(amount >= 1, Error::<T>::AmountLessThanOne);
 
             let who = ensure_signed(origin)?;
@@ -146,7 +113,7 @@ decl_module! {
         }
 
         #[weight = 10_000]
-        pub fn burn(origin, collection_id: u128, start_idx:u128) -> DispatchResult {
+        pub fn burn(origin, collection_id: T::Hash, start_idx:u128) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
             Self::_burn(who, collection_id, start_idx, 1)?;
@@ -155,7 +122,7 @@ decl_module! {
         }
 
         #[weight = 10_000]
-        pub fn batch_burn(origin, collection_id: u128, start_idx: u128, amount: u128) -> DispatchResult {
+        pub fn batch_burn(origin, collection_id: T::Hash, start_idx: u128, amount: u128) -> DispatchResult {
             ensure!(amount >= 1, Error::<T>::AmountLessThanOne);
 
             let who = ensure_signed(origin)?;
@@ -169,13 +136,18 @@ decl_module! {
 }
 
 impl<T: Config> Module<T> {
-    fn _mint(who: T::AccountId, collection_id: u128, amount: u128, uri: Vec<u8>) -> DispatchResult {
+    fn _mint(
+        who: T::AccountId,
+        collection_id: T::Hash,
+        amount: u128,
+        uri: Vec<u8>,
+    ) -> DispatchResult {
         ensure!(
-            Collections::<T>::contains_key(collection_id),
+            <pallet_collection::Collections<T>>::contains_key(collection_id),
             Error::<T>::CollectionNotFound
         );
 
-        let start_idx = if LastTokenId::contains_key(collection_id) {
+        let start_idx = if LastTokenId::<T>::contains_key(collection_id) {
             Self::last_token_id(collection_id)
                 .checked_add(1)
                 .ok_or(Error::<T>::NumOverflow)?
@@ -187,16 +159,6 @@ impl<T: Config> Module<T> {
             .checked_add(amount)
             .ok_or(Error::<T>::NumOverflow)?;
         let end_idx = end_idx.checked_sub(1).ok_or(Error::<T>::NumOverflow)?;
-        let collection = Self::collections(collection_id);
-        let new_total_supply = collection
-            .total_supply
-            .checked_add(amount)
-            .ok_or(Error::<T>::NumOverflow)?;
-
-        let new_collection = CollectionInfo {
-            total_supply: new_total_supply,
-            ..collection
-        };
 
         let token = TokenInfo {
             end_idx: end_idx,
@@ -208,9 +170,9 @@ impl<T: Config> Module<T> {
             .checked_add(amount)
             .ok_or(Error::<T>::NumOverflow)?;
 
-        Collections::<T>::insert(collection_id, new_collection);
-
-        LastTokenId::insert(collection_id, end_idx);
+        let new_total_supply =
+            <pallet_collection::Module<T>>::add_total_supply(collection_id, amount)?;
+        LastTokenId::<T>::insert(collection_id, end_idx);
         AddressBalances::<T>::insert((collection_id, who.clone()), owner_balance);
         Tokens::<T>::insert((collection_id, start_idx), token);
 
@@ -229,13 +191,13 @@ impl<T: Config> Module<T> {
     fn _transfer(
         who: T::AccountId,
         receiver: T::AccountId,
-        collection_id: u128,
+        collection_id: T::Hash,
         start_idx: u128,
         amount: u128,
     ) -> DispatchResult {
         ensure!(&who != &receiver, Error::<T>::ReceiverIsSender);
         ensure!(
-            Collections::<T>::contains_key(collection_id),
+            <pallet_collection::Collections<T>>::contains_key(collection_id),
             Error::<T>::CollectionNotFound
         );
         ensure!(
@@ -299,12 +261,12 @@ impl<T: Config> Module<T> {
 
     fn _burn(
         who: T::AccountId,
-        collection_id: u128,
+        collection_id: T::Hash,
         start_idx: u128,
         amount: u128,
     ) -> DispatchResult {
         ensure!(
-            Collections::<T>::contains_key(collection_id),
+            <pallet_collection::Collections<T>>::contains_key(collection_id),
             Error::<T>::CollectionNotFound
         );
         ensure!(
@@ -325,18 +287,6 @@ impl<T: Config> Module<T> {
 
             ensure!(token_amount >= &amount, Error::<T>::AmountTooLarge);
         }
-
-        let collection = Self::collections(collection_id);
-        let new_total_supply = collection
-            .total_supply
-            .checked_sub(amount)
-            .ok_or(Error::<T>::NumOverflow)?;
-
-        let new_collection = CollectionInfo {
-            total_supply: new_total_supply,
-            ..collection
-        };
-
         let balance = Self::address_balances((collection_id, &who))
             .checked_sub(amount)
             .ok_or(Error::<T>::NumOverflow)?;
@@ -346,7 +296,9 @@ impl<T: Config> Module<T> {
 
         let is_burn_all = &new_start_idx == &token.end_idx;
 
-        Collections::<T>::insert(collection_id, new_collection);
+        let new_total_supply =
+            <pallet_collection::Module<T>>::sub_total_supply(collection_id, amount)?;
+
         AddressBalances::<T>::insert((collection_id, who.clone()), balance);
         Tokens::<T>::remove((collection_id, start_idx));
 
@@ -355,7 +307,13 @@ impl<T: Config> Module<T> {
         }
 
         // [sender, amount, collection_id, start_idx]
-        Self::deposit_event(RawEvent::TokenBurned(who, amount, collection_id, start_idx));
+        Self::deposit_event(RawEvent::TokenBurned(
+            who,
+            amount,
+            collection_id,
+            start_idx,
+            new_total_supply,
+        ));
 
         Ok(())
     }
