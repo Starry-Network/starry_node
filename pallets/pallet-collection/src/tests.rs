@@ -7,7 +7,7 @@ fn test_create_collection() {
 		let alice_address = 1;
         let alice = Origin::signed(alice_address);
 
-        assert_ok!(TemplateModule::create_collection(alice, vec![2, 3, 3]));
+        assert_ok!(TemplateModule::create_collection(alice, vec![2, 3, 3], false));
 
         let nonce = TemplateModule::get_nonce();
 		assert_eq!(nonce, 1);

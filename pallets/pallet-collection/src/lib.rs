@@ -17,11 +17,18 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+#[derive(Encode, Decode, Copy, Clone, PartialEq, Eq)]
+pub enum SubTokenType {
+    NonFungible,
+    Fungible,
+}
+
 #[derive(Encode, Decode, Default, Clone, PartialEq)]
 pub struct CollectionInfo<AccountId> {
     pub owner: AccountId,
     pub uri: Vec<u8>,
     pub total_supply: u128,
+    pub token_type: Option<SubTokenType>,
 }
 
 const PALLET_ID: ModuleId = ModuleId(*b"Collecti");
@@ -61,10 +68,10 @@ decl_module! {
         fn deposit_event() = default;
 
         #[weight = 10_000]
-        pub fn create_collection(origin, uri: Vec<u8>) -> DispatchResult  {
+        pub fn create_collection(origin, uri: Vec<u8>, is_fungible: bool) -> DispatchResult  {
             let who = ensure_signed(origin)?;
 
-            Self::_create_collection(who.clone(), uri)?;
+            Self::_create_collection(who.clone(), uri, is_fungible)?;
 
             Ok(())
         }
@@ -79,7 +86,11 @@ impl<T: Config> Module<T> {
         Ok(collection_id)
     }
 
-    pub fn _create_collection(who: T::AccountId, uri: Vec<u8>) -> Result<T::Hash, DispatchError> {
+    pub fn _create_collection(
+        who: T::AccountId,
+        uri: Vec<u8>,
+        is_fungible: bool,
+    ) -> Result<T::Hash, DispatchError> {
         let nonce = Nonce::try_mutate(|nonce| -> Result<u128, DispatchError> {
             *nonce = nonce.checked_add(1).ok_or(Error::<T>::NumOverflow)?;
             Ok(*nonce)
@@ -87,10 +98,17 @@ impl<T: Config> Module<T> {
 
         let collection_id = Self::generate_collection_id(nonce)?;
 
+        let token_type = if is_fungible {
+            Some(SubTokenType::Fungible)
+        } else {
+            Some(SubTokenType::NonFungible)
+        };
+
         let collection = CollectionInfo {
             owner: who.clone(),
             total_supply: 0,
             uri,
+            token_type,
         };
 
         Collections::<T>::insert(collection_id, collection);
@@ -138,7 +156,6 @@ impl<T: Config> Module<T> {
             .total_supply
             .checked_sub(amount)
             .ok_or(Error::<T>::NumOverflow)?;
-
 
         let new_collection = CollectionInfo {
             total_supply,

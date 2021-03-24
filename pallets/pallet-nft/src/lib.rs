@@ -172,6 +172,7 @@ impl<T: Config> Module<T> {
 
         let new_total_supply =
             <pallet_collection::Module<T>>::add_total_supply(collection_id, amount)?;
+        
         LastTokenId::<T>::insert(collection_id, end_idx);
         AddressBalances::<T>::insert((collection_id, who.clone()), owner_balance);
         Tokens::<T>::insert((collection_id, start_idx), token);

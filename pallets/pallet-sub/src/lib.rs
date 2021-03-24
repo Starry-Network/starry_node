@@ -91,7 +91,7 @@ decl_module! {
             let who = ensure_signed(origin.clone())?;
             let token = <pallet_nft::Tokens<T>>::get((collection_id, start_idx));
             <pallet_nft::Module<T>>::transfer(origin, Self::account_id(), collection_id, start_idx)?;
-            let subtoken_collection_id = <pallet_collection::Module<T>>::_create_collection(Self::account_id(),token.uri)?;
+            let subtoken_collection_id = <pallet_collection::Module<T>>::_create_collection(Self::account_id(), token.uri, false)?;
 
             SubTokenCreator::<T>::insert(subtoken_collection_id, &who);
             SubTokens::<T>::insert(subtoken_collection_id, (collection_id, start_idx));
