@@ -3851,6 +3851,7 @@ version = "3.0.0"
 dependencies = [
  "frame-support",
  "frame-system",
+ "pallet-collection",
  "pallet-nft",
  "parity-scale-codec",
  "serde",

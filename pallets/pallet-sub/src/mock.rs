@@ -6,6 +6,9 @@ use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup}, testing::Header,
 };
 use frame_system as system;
+use frame_support::{
+	traits::TestRandomness,
+};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -20,6 +23,7 @@ frame_support::construct_runtime!(
 		System: frame_system::{Module, Call, Config, Storage, Event<T>},
 		NFTModule: pallet_nft::{Module, Call, Storage, Event<T>},
 		SubModule: pallet_sub::{Module, Call, Storage, Event<T>},
+		CollectionModule: pallet_collection::{Module, Call, Storage, Event<T>},
 	}
 );
 
@@ -55,6 +59,11 @@ impl system::Config for Test {
 
 impl pallet_sub::Config for Test {
 	type Event = Event;
+}
+
+impl pallet_collection::Config for Test {
+	type Event = Event;
+	type RandomnessSource = TestRandomness;
 }
 
 impl pallet_nft::Config for Test {
