@@ -153,7 +153,7 @@ decl_module! {
         }
 
         #[weight = 10_000]
-        pub fn burn_fungible(origin, collection_id: T::Hash, start_idx:u128, amount:u128) -> DispatchResult {
+        pub fn burn_fungible(origin, collection_id: T::Hash, amount:u128) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
             Self::_burn_fungible(who, collection_id, amount)?;
@@ -240,6 +240,7 @@ impl<T: Config> Module<T> {
         let owner_balance = Self::address_balances((collection_id, &receiver))
             .checked_add(amount)
             .ok_or(Error::<T>::NumOverflow)?;
+
         let new_total_supply =
             <pallet_collection::Module<T>>::add_total_supply(collection_id, amount)?;
 
@@ -450,11 +451,7 @@ impl<T: Config> Module<T> {
         Ok(())
     }
 
-    fn _burn_fungible(
-        who: T::AccountId,
-        collection_id: T::Hash,
-        amount: u128,
-    ) -> DispatchResult {
+    fn _burn_fungible(who: T::AccountId, collection_id: T::Hash, amount: u128) -> DispatchResult {
         ensure!(amount >= 1, Error::<T>::AmountLessThanOne);
 
         ensure!(
