@@ -18,7 +18,7 @@ mod mock;
 mod tests;
 
 #[derive(Encode, Decode, Copy, Clone, PartialEq, Eq)]
-pub enum SubTokenType {
+pub enum TokenType {
     NonFungible,
     Fungible,
 }
@@ -28,7 +28,7 @@ pub struct CollectionInfo<AccountId> {
     pub owner: AccountId,
     pub uri: Vec<u8>,
     pub total_supply: u128,
-    pub token_type: Option<SubTokenType>,
+    pub token_type: Option<TokenType>,
 }
 
 const PALLET_ID: ModuleId = ModuleId(*b"Collecti");
@@ -99,9 +99,9 @@ impl<T: Config> Module<T> {
         let collection_id = Self::generate_collection_id(nonce)?;
 
         let token_type = if is_fungible {
-            Some(SubTokenType::Fungible)
+            Some(TokenType::Fungible)
         } else {
-            Some(SubTokenType::NonFungible)
+            Some(TokenType::NonFungible)
         };
 
         let collection = CollectionInfo {
