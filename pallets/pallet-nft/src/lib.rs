@@ -188,7 +188,7 @@ impl<T: Config> Module<T> {
         Ok(())
     }
 
-    fn _transfer(
+    pub fn _transfer(
         who: T::AccountId,
         receiver: T::AccountId,
         collection_id: T::Hash,

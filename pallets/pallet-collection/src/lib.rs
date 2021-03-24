@@ -64,22 +64,7 @@ decl_module! {
         pub fn create_collection(origin, uri: Vec<u8>) -> DispatchResult  {
             let who = ensure_signed(origin)?;
 
-            let nonce = Nonce::try_mutate(|nonce| -> Result<u128, DispatchError> {
-                *nonce = nonce.checked_add(1).ok_or(Error::<T>::NumOverflow)?;
-                Ok(*nonce)
-            })?;
-
-            let collection_id = Self::generate_collection_id(nonce)?;
-
-            let collection = CollectionInfo {
-                owner: who.clone(),
-                total_supply: 0,
-                uri,
-            };
-
-            Collections::<T>::insert(collection_id, collection);
-
-            Self::deposit_event(RawEvent::CollectionCreated(who, collection_id));
+            Self::_create_collection(who.clone(), uri)?;
 
             Ok(())
         }
@@ -94,6 +79,26 @@ impl<T: Config> Module<T> {
         Ok(collection_id)
     }
 
+    pub fn _create_collection(who: T::AccountId, uri: Vec<u8>) -> Result<T::Hash, DispatchError> {
+        let nonce = Nonce::try_mutate(|nonce| -> Result<u128, DispatchError> {
+            *nonce = nonce.checked_add(1).ok_or(Error::<T>::NumOverflow)?;
+            Ok(*nonce)
+        })?;
+
+        let collection_id = Self::generate_collection_id(nonce)?;
+
+        let collection = CollectionInfo {
+            owner: who.clone(),
+            total_supply: 0,
+            uri,
+        };
+
+        Collections::<T>::insert(collection_id, collection);
+
+        Self::deposit_event(RawEvent::CollectionCreated(who, collection_id));
+
+        Ok(collection_id)
+    }
     // pub fn create_collection(who: T::AccountId, uri: Vec<u8>) -> Result<T::Hash, DispatchError> {
     //     let id = Self::generate_collection_id()?;
 

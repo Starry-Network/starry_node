@@ -9,6 +9,24 @@ fn it_works_for_pallet_nft() {
     });
 }
 
+#[test]
+fn on_receive() {
+    new_test_ext().execute_with(|| {
+        let alice_address = 1;
+        let alice = Origin::signed(alice_address);
+        CollectionModule::create_collection(alice.clone(), vec![2, 3, 3]).unwrap();
+
+        let nonce = CollectionModule::get_nonce();
+        let collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
+        NFTModule::mint(alice.clone(), collection_id, vec![2, 3, 3]).unwrap();
+
+        let last_token_id = NFTModule::last_token_id(collection_id);
+
+        assert_ok!(SubModule::receive(alice, collection_id, last_token_id));
+
+    });
+}
+
 // #[test]
 // fn transfer_to_pallet_sub() {
 //     new_test_ext().execute_with(|| {
@@ -494,7 +512,6 @@ fn it_works_for_pallet_nft() {
 //     new_test_ext().execute_with(|| {
 //         let alice_address = 1;
 //         let alice = Origin::signed(alice_address);
-        
 
 //         assert_ok!(NFTModule::create_collection(alice.clone(), vec![2, 3, 3]));
 
