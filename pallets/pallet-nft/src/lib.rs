@@ -40,11 +40,8 @@ decl_storage! {
         // (collection_id, address) => balance;
         pub AddressBalances get (fn address_balances): map hasher(blake2_128_concat) (T::Hash, T::AccountId) => u128;
 
-        // MemberScore get(fn member_score):
-        //     double_map hasher(blake2_128_concat) GroupIndex, hasher(blake2_128_concat) T::AccountId => u32;
         // (collection_id, start_idx) => nft_info
-        pub Tokens get(fn tokens): double_map hasher(blake2_128_concat) T::Hash, hasher(blake2_128_concat) u128 =>  TokenInfo<T::AccountId>;
-        // pub Tokens get(fn tokens): map hasher(blake2_128_concat) (T::Hash, u128) =>  TokenInfo<T::AccountId>;
+        pub Tokens get(fn tokens): double_map hasher(blake2_128_concat) T::Hash, hasher(blake2_128_concat) u128 => TokenInfo<T::AccountId>;
 
         // collection_id => burned amount
         pub BurnedTokens get(fn burned_tokens): map hasher(blake2_128_concat) T::Hash => u128;
