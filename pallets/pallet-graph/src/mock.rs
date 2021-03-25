@@ -1,6 +1,9 @@
-use crate as pallet_template;
+use crate as pallet_graph;
 use sp_core::H256;
 use frame_support::parameter_types;
+use frame_support::{
+	traits::TestRandomness,
+};
 use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup}, testing::Header,
 };
@@ -17,7 +20,9 @@ frame_support::construct_runtime!(
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
 		System: frame_system::{Module, Call, Config, Storage, Event<T>},
-		TemplateModule: pallet_template::{Module, Call, Storage, Event<T>},
+		CollectionModule: pallet_collection::{Module, Call, Storage, Event<T>},
+		NFTModule: pallet_nft::{Module, Call, Storage, Event<T>},
+		GraphModule: pallet_graph::{Module, Call, Storage, Event<T>},
 	}
 );
 
@@ -51,7 +56,16 @@ impl system::Config for Test {
 	type SS58Prefix = SS58Prefix;
 }
 
-impl pallet_template::Config for Test {
+impl pallet_collection::Config for Test {
+	type Event = Event;
+	type RandomnessSource = TestRandomness;
+}
+
+impl pallet_nft::Config for Test {
+	type Event = Event;
+}
+
+impl pallet_graph::Config for Test {
 	type Event = Event;
 }
 

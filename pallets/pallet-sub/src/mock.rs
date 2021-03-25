@@ -21,9 +21,9 @@ frame_support::construct_runtime!(
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
 		System: frame_system::{Module, Call, Config, Storage, Event<T>},
+		CollectionModule: pallet_collection::{Module, Call, Storage, Event<T>},
 		NFTModule: pallet_nft::{Module, Call, Storage, Event<T>},
 		SubModule: pallet_sub::{Module, Call, Storage, Event<T>},
-		CollectionModule: pallet_collection::{Module, Call, Storage, Event<T>},
 	}
 );
 
@@ -57,16 +57,16 @@ impl system::Config for Test {
 	type SS58Prefix = SS58Prefix;
 }
 
-impl pallet_sub::Config for Test {
-	type Event = Event;
-}
-
 impl pallet_collection::Config for Test {
 	type Event = Event;
 	type RandomnessSource = TestRandomness;
 }
 
 impl pallet_nft::Config for Test {
+	type Event = Event;
+}
+
+impl pallet_sub::Config for Test {
 	type Event = Event;
 }
 

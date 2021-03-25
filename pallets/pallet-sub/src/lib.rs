@@ -55,6 +55,8 @@ decl_event!(
     {
         // (token owner, collection_id, token_id, subtoken_collection, subtoken_type)
         SubTokenCreated(AccountId, Hash, u128, Hash, bool),
+        // (owner, collection_id, token_id, subtoken_collection)
+        TokenRecovered(AccountId, Hash, u128, Hash),
     }
 );
 
@@ -84,8 +86,10 @@ decl_module! {
         #[weight = 10_000]
         pub fn create(origin, collection_id: T::Hash, start_idx: u128, is_fungible: bool) -> DispatchResult {
             let who = ensure_signed(origin.clone())?;
-            let token = <pallet_nft::Tokens<T>>::get(collection_id, start_idx);
+            // transfer function will ensure collection and token exist so don't need to re-write ensure code.
             <pallet_nft::Module<T>>::_transfer_non_fungible(who.clone(), Self::account_id(), collection_id, start_idx, 1)?;
+
+            let token = <pallet_nft::Tokens<T>>::get(collection_id, start_idx);
             let sub_token_collection_id = <pallet_collection::Module<T>>::_create_collection(Self::account_id(), token.uri, is_fungible)?;
 
             SubTokenCreator::<T>::insert(sub_token_collection_id, &who);
@@ -132,6 +136,9 @@ decl_module! {
                 <pallet_nft::Tokens<T>>::remove_prefix(sub_token_collection_id);
             }
 
+            // (owner, collection_id, token_id, subtoken_collection)
+            Self::deposit_event(RawEvent::TokenRecovered(who, collection_id, start_idx, sub_token_collection_id));
+
             Ok(())
         }
 
@@ -161,7 +168,6 @@ decl_module! {
                 Error::<T>::CollectionNotFound
             );
             ensure!(SubTokens::<T>::contains_key(sub_token_collection_id), Error::<T>::SubTokenNotFound);
-
 
             let who = ensure_signed(origin)?;
             let collection = <pallet_collection::Collections<T>>::get(sub_token_collection_id);

@@ -70,8 +70,9 @@ decl_module! {
         #[weight = 10_000]
         pub fn create_collection(origin, uri: Vec<u8>, is_fungible: bool) -> DispatchResult  {
             let who = ensure_signed(origin)?;
+            let collection_id = Self::_create_collection(who.clone(), uri, is_fungible)?;
 
-            Self::_create_collection(who.clone(), uri, is_fungible)?;
+            Self::deposit_event(RawEvent::CollectionCreated(who, collection_id));
 
             Ok(())
         }
@@ -112,8 +113,6 @@ impl<T: Config> Module<T> {
         };
 
         Collections::<T>::insert(collection_id, collection);
-
-        Self::deposit_event(RawEvent::CollectionCreated(who, collection_id));
 
         Ok(collection_id)
     }
