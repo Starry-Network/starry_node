@@ -60,8 +60,8 @@ decl_event!(
         AccountId = <T as frame_system::Config>::AccountId,
         Hash = <T as frame_system::Config>::Hash,
     {
-        // (token owner, collection_id, token_id, subtoken_collection)
-        TokenReceived(AccountId, Hash, u128, Hash),
+        // (token owner, collection_id, token_id, subtoken_collection, subtoken_type)
+        SubTokenCreated(AccountId, Hash, u128, Hash, bool),
     }
 );
 
@@ -87,17 +87,17 @@ decl_module! {
         fn deposit_event() = default;
 
         #[weight = 10_000]
-        pub fn receive(origin, collection_id: T::Hash, start_idx: u128) -> DispatchResult {
+        pub fn create(origin, collection_id: T::Hash, start_idx: u128, is_fungible: bool) -> DispatchResult {
             let who = ensure_signed(origin.clone())?;
             let token = <pallet_nft::Tokens<T>>::get((collection_id, start_idx));
-            <pallet_nft::Module<T>>::transfer(origin, Self::account_id(), collection_id, start_idx)?;
-            let subtoken_collection_id = <pallet_collection::Module<T>>::_create_collection(Self::account_id(), token.uri, false)?;
+            <pallet_nft::Module<T>>::_transfer_non_fungible(who.clone(), Self::account_id(), collection_id, start_idx, 1)?;
+            let subtoken_collection_id = <pallet_collection::Module<T>>::_create_collection(Self::account_id(), token.uri, is_fungible)?;
 
             SubTokenCreator::<T>::insert(subtoken_collection_id, &who);
             SubTokens::<T>::insert(subtoken_collection_id, (collection_id, start_idx));
 
-            // (token owner, collection_id, token_id, subtoken_collection)
-            Self::deposit_event(RawEvent::TokenReceived(who, collection_id, start_idx, subtoken_collection_id));
+            // (token owner, collection_id, token_id, subtoken_collection, subtoken_type)
+            Self::deposit_event(RawEvent::SubTokenCreated(who, collection_id, start_idx, subtoken_collection_id, is_fungible));
 
             Ok(())
         }

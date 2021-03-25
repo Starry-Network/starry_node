@@ -1,29 +1,92 @@
 use crate::{mock::*, Error};
 use frame_support::{assert_noop, assert_ok};
+use pallet_nft;
 
 #[test]
-fn it_works_for_pallet_nft() {
+fn it_works_for_pallet_collection() {
     new_test_ext().execute_with(|| {
         let alice = Origin::signed(1);
-        assert_ok!(CollectionModule::create_collection(alice, vec![2, 3, 3]));
+        assert_ok!(CollectionModule::create_collection(
+            alice,
+            vec![2, 3, 3],
+            false
+        ));
     });
 }
 
 #[test]
-fn on_receive() {
+fn create_success() {
     new_test_ext().execute_with(|| {
         let alice_address = 1;
         let alice = Origin::signed(alice_address);
-        CollectionModule::create_collection(alice.clone(), vec![2, 3, 3]).unwrap();
+        CollectionModule::create_collection(alice.clone(), vec![2, 3, 3], false).unwrap();
 
         let nonce = CollectionModule::get_nonce();
         let collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
-        NFTModule::mint(alice.clone(), collection_id, vec![2, 3, 3]).unwrap();
-
+        let mint_amount = 10;
+        NFTModule::mint_non_fungible(
+            alice.clone(),
+            alice_address,
+            collection_id,
+            vec![2, 3, 3],
+            mint_amount,
+        )
+        .unwrap();
         let last_token_id = NFTModule::last_token_id(collection_id);
+        let start_idx = mint_amount - last_token_id - 1;
 
-        assert_ok!(SubModule::receive(alice, collection_id, last_token_id));
+        assert_ok!(SubModule::create(alice, collection_id, start_idx, false));
 
+        let token = NFTModule::tokens((collection_id, start_idx));
+
+        assert_eq!(token.owner, SubModule::account_id());
+
+        let nonce = CollectionModule::get_nonce();
+        let collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
+        let collection = CollectionModule::collections(collection_id);
+
+        assert_eq!(collection.owner, SubModule::account_id());
+    });
+}
+
+#[test]
+fn create_failed() {
+    new_test_ext().execute_with(|| {
+        let alice_address = 1;
+        let alice = Origin::signed(alice_address);
+        let bob_address = 2;
+        let bob = Origin::signed(bob_address);
+
+        CollectionModule::create_collection(alice.clone(), vec![2, 3, 3], false).unwrap();
+
+        let nonce = CollectionModule::get_nonce();
+        let collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
+        let not_available_collection_id =
+            CollectionModule::generate_collection_id(nonce + 1).unwrap();
+        NFTModule::mint_non_fungible(
+            alice.clone(),
+            alice_address,
+            collection_id,
+            vec![2, 3, 3],
+            10,
+        )
+        .unwrap();
+
+        let start_idx = 1;
+        assert_noop!(
+            SubModule::create(alice.clone(), collection_id, start_idx, false),
+            <pallet_nft::Error<Test>>::TokenNotFound
+        );
+
+        let start_idx = 0;
+        assert_noop!(
+            SubModule::create(alice, not_available_collection_id, start_idx, false),
+            <pallet_nft::Error<Test>>::CollectionNotFound
+        );
+        assert_noop!(
+            SubModule::create(bob, collection_id, start_idx, false),
+            <pallet_nft::Error<Test>>::PermissionDenied
+        );
     });
 }
 

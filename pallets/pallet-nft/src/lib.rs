@@ -164,7 +164,7 @@ decl_module! {
 }
 
 impl<T: Config> Module<T> {
-    fn _mint_non_fungible(
+    pub fn _mint_non_fungible(
         receiver: T::AccountId,
         collection_id: T::Hash,
         amount: u128,
@@ -222,7 +222,7 @@ impl<T: Config> Module<T> {
         Ok(())
     }
 
-    fn _mint_fungible(
+    pub fn _mint_fungible(
         receiver: T::AccountId,
         collection_id: T::Hash,
         amount: u128,
@@ -383,7 +383,7 @@ impl<T: Config> Module<T> {
         Ok(())
     }
 
-    fn _burn_non_fungible(
+    pub fn _burn_non_fungible(
         who: T::AccountId,
         collection_id: T::Hash,
         start_idx: u128,
@@ -455,7 +455,7 @@ impl<T: Config> Module<T> {
         Ok(())
     }
 
-    fn _burn_fungible(who: T::AccountId, collection_id: T::Hash, amount: u128) -> DispatchResult {
+    pub fn _burn_fungible(who: T::AccountId, collection_id: T::Hash, amount: u128) -> DispatchResult {
         ensure!(amount >= 1, Error::<T>::AmountLessThanOne);
 
         ensure!(
