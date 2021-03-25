@@ -134,6 +134,43 @@ decl_module! {
 
             Ok(())
         }
+
+        #[weight = 10_000]
+        pub fn mint_non_fungible(origin, sub_token_collection_id: T::Hash, uri: Vec<u8>,  amount: u128,) -> DispatchResult {
+            ensure!(
+                <pallet_collection::Collections<T>>::contains_key(sub_token_collection_id),
+                Error::<T>::CollectionNotFound
+            );
+            ensure!(SubTokens::<T>::contains_key(sub_token_collection_id), Error::<T>::SubTokenNotFound);
+
+
+            let who = ensure_signed(origin)?;
+            let collection = <pallet_collection::Collections<T>>::get(sub_token_collection_id);
+            ensure!(collection.owner == Self::account_id(), Error::<T>::PermissionDenied);
+            ensure!(Self::sub_token_creator(sub_token_collection_id)==who, Error::<T>::PermissionDenied);
+
+            <pallet_nft::Module<T>>::_mint_non_fungible(who.clone(), sub_token_collection_id, amount, uri, &collection)?;
+
+            Ok(())
+        }
+       
+        #[weight = 10_000]
+        pub fn mint_fungible(origin, sub_token_collection_id: T::Hash, amount: u128,) -> DispatchResult {
+            ensure!(
+                <pallet_collection::Collections<T>>::contains_key(sub_token_collection_id),
+                Error::<T>::CollectionNotFound
+            );
+            ensure!(SubTokens::<T>::contains_key(sub_token_collection_id), Error::<T>::SubTokenNotFound);
+
+
+            let who = ensure_signed(origin)?;
+            let collection = <pallet_collection::Collections<T>>::get(sub_token_collection_id);
+            ensure!(collection.owner == Self::account_id(), Error::<T>::PermissionDenied);
+            ensure!(Self::sub_token_creator(sub_token_collection_id)==who, Error::<T>::PermissionDenied);
+            <pallet_nft::Module<T>>::_mint_fungible(who.clone(), sub_token_collection_id, amount, &collection)?;
+
+            Ok(())
+        }
     }
 }
 

@@ -111,13 +111,12 @@ decl_module! {
 
         #[weight = 10_000]
         pub fn mint_non_fungible(origin, receiver: T::AccountId, collection_id: T::Hash, uri: Vec<u8>, amount:u128) -> DispatchResult {
-            let who = ensure_signed(origin)?;
-
             ensure!(
                 <pallet_collection::Collections<T>>::contains_key(collection_id),
                 Error::<T>::CollectionNotFound
             );
 
+            let who = ensure_signed(origin)?;
             // ensure collection owner = origin
             let collection = <pallet_collection::Collections<T>>::get(collection_id);
             ensure!(collection.owner == who, Error::<T>::PermissionDenied);
