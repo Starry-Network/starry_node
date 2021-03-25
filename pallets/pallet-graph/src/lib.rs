@@ -1,7 +1,8 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use frame_support::{
-    decl_error, decl_event, decl_module, decl_storage, dispatch::DispatchResult, traits::Get,
+    decl_error, decl_event, decl_module, decl_storage, dispatch::DispatchResult, ensure,
+    traits::Get,
 };
 use frame_system::ensure_signed;
 use sp_runtime::{traits::AccountIdConversion, ModuleId};
@@ -33,8 +34,8 @@ decl_event!(
         AccountId = <T as frame_system::Config>::AccountId,
         Hash = <T as frame_system::Config>::Hash,
     {
-		// (creator, graph_id)
-		GraphCreated(AccountId, Hash),
+        // (creator, graph_id)
+        GraphCreated(AccountId, Hash),
     }
 );
 
@@ -42,6 +43,7 @@ decl_error! {
     pub enum Error for Module<T: Config> {
         NoneValue,
         StorageOverflow,
+        GraphNotFound
     }
 }
 
@@ -63,7 +65,22 @@ decl_module! {
             Ok(())
         }
 
-       }
+        #[weight = 10_000]
+        pub fn mint(origin, receiver: T::AccountId, graph_id: T::Hash, uri: Vec<u8>) -> DispatchResult {
+            ensure!(GraphCreator::<T>::contains_key, Error::<T>::GraphNotFound);
+
+            let who = ensure_signed(origin)?;
+
+            ensure!(&Self::graph_creator(graph_id), &who);
+
+            let collection = <pallet_collection::Collections<T>>::get(graph_id);
+            <pallet_nft::Module<T>>::_mint_non_fungible(receiver, graph_id, 1, uri, &collection);
+
+            Ok(())
+        }
+
+		// link to other token
+    }
 }
 
 impl<T: Config> Module<T> {
