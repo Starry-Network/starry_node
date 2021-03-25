@@ -109,7 +109,7 @@ decl_module! {
 
             let who = ensure_signed(origin)?;
             let collection = <pallet_collection::Collections<T>>::get(sub_token_collection_id);
-            
+
             let balance = <pallet_nft::AddressBalances<T>>::get((sub_token_collection_id, &who));
             ensure!(balance == collection.total_supply, Error::<T>::PermissionDenied);
 
@@ -122,7 +122,7 @@ decl_module! {
 
             let (collection_id, start_idx) = Self::sub_tokens(sub_token_collection_id);
             <pallet_nft::Module<T>>::transfer_non_fungible(frame_system::RawOrigin::Signed(Self::account_id()).into(), who, collection_id, start_idx, 1)?;
-            
+
             SubTokenCreator::<T>::remove(sub_token_collection_id);
             SubTokens::<T>::remove(sub_token_collection_id);
 
@@ -136,7 +136,7 @@ decl_module! {
         }
 
         #[weight = 10_000]
-        pub fn mint_non_fungible(origin, sub_token_collection_id: T::Hash, uri: Vec<u8>,  amount: u128,) -> DispatchResult {
+        pub fn mint_non_fungible(origin, receiver: T::AccountId, sub_token_collection_id: T::Hash, uri: Vec<u8>,  amount: u128,) -> DispatchResult {
             ensure!(
                 <pallet_collection::Collections<T>>::contains_key(sub_token_collection_id),
                 Error::<T>::CollectionNotFound
@@ -149,13 +149,13 @@ decl_module! {
             ensure!(collection.owner == Self::account_id(), Error::<T>::PermissionDenied);
             ensure!(Self::sub_token_creator(sub_token_collection_id)==who, Error::<T>::PermissionDenied);
 
-            <pallet_nft::Module<T>>::_mint_non_fungible(who.clone(), sub_token_collection_id, amount, uri, &collection)?;
+            <pallet_nft::Module<T>>::_mint_non_fungible(receiver, sub_token_collection_id, amount, uri, &collection)?;
 
             Ok(())
         }
-       
+
         #[weight = 10_000]
-        pub fn mint_fungible(origin, sub_token_collection_id: T::Hash, amount: u128,) -> DispatchResult {
+        pub fn mint_fungible(origin, receiver: T::AccountId,  sub_token_collection_id: T::Hash, amount: u128,) -> DispatchResult {
             ensure!(
                 <pallet_collection::Collections<T>>::contains_key(sub_token_collection_id),
                 Error::<T>::CollectionNotFound
@@ -167,7 +167,7 @@ decl_module! {
             let collection = <pallet_collection::Collections<T>>::get(sub_token_collection_id);
             ensure!(collection.owner == Self::account_id(), Error::<T>::PermissionDenied);
             ensure!(Self::sub_token_creator(sub_token_collection_id)==who, Error::<T>::PermissionDenied);
-            <pallet_nft::Module<T>>::_mint_fungible(who.clone(), sub_token_collection_id, amount, &collection)?;
+            <pallet_nft::Module<T>>::_mint_fungible(receiver, sub_token_collection_id, amount, &collection)?;
 
             Ok(())
         }
