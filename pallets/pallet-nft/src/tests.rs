@@ -30,7 +30,7 @@ fn mint_non_fungible_success() {
         assert_eq!(last_token_id, mint_amount - 1);
 
         let start_idx = last_token_id + 1 - mint_amount;
-        let token = NFTModule::tokens((collection_id, start_idx));
+        let token = NFTModule::tokens(collection_id, start_idx);
 
         assert_eq!(token.end_idx, mint_amount - 1);
         assert_eq!(
@@ -163,7 +163,7 @@ fn transfer_non_fungible_success() {
         .unwrap();
         let last_token_id = NFTModule::last_token_id(collection_id);
         let start_idx = mint_amount - last_token_id - 1;
-        let token = NFTModule::tokens((collection_id, start_idx));
+        let token = NFTModule::tokens(collection_id, start_idx);
 
         assert_eq!(token.owner, alice_address);
         assert_eq!(
@@ -190,8 +190,8 @@ fn transfer_non_fungible_success() {
         );
 
         let alice_start_idx = last_token_id - transfer_amount;
-        let bob_nfts = NFTModule::tokens((collection_id, start_idx));
-        let alice_nfts = NFTModule::tokens((collection_id, alice_start_idx));
+        let bob_nfts = NFTModule::tokens(collection_id, start_idx);
+        let alice_nfts = NFTModule::tokens(collection_id, alice_start_idx);
 
         assert_eq!(bob_nfts.owner, bob_address);
         assert_eq!(alice_nfts.owner, alice_address);

@@ -40,8 +40,11 @@ decl_storage! {
         // (collection_id, address) => balance;
         pub AddressBalances get (fn address_balances): map hasher(blake2_128_concat) (T::Hash, T::AccountId) => u128;
 
+        // MemberScore get(fn member_score):
+        //     double_map hasher(blake2_128_concat) GroupIndex, hasher(blake2_128_concat) T::AccountId => u32;
         // (collection_id, start_idx) => nft_info
-        pub Tokens get(fn tokens): map hasher(blake2_128_concat) (T::Hash, u128) =>  TokenInfo<T::AccountId>;
+        pub Tokens get(fn tokens): double_map hasher(blake2_128_concat) T::Hash, hasher(blake2_128_concat) u128 =>  TokenInfo<T::AccountId>;
+        // pub Tokens get(fn tokens): map hasher(blake2_128_concat) (T::Hash, u128) =>  TokenInfo<T::AccountId>;
 
         // collection_id => burned amount
         pub BurnedTokens get(fn burned_tokens): map hasher(blake2_128_concat) T::Hash => u128;
@@ -208,7 +211,7 @@ impl<T: Config> Module<T> {
 
         LastTokenId::<T>::insert(collection_id, end_idx);
         AddressBalances::<T>::insert((collection_id, &receiver), owner_balance);
-        Tokens::<T>::insert((collection_id, start_idx), token);
+        Tokens::<T>::insert(collection_id, start_idx, token);
 
         // [receiver, collection_id, start_idx, end_idx, new_total_supply]
         Self::deposit_event(RawEvent::NonFungibleTokenMinted(
@@ -281,11 +284,11 @@ impl<T: Config> Module<T> {
         }
 
         ensure!(
-            Tokens::<T>::contains_key((collection_id, start_idx)),
+            Tokens::<T>::contains_key(collection_id, start_idx),
             Error::<T>::TokenNotFound
         );
 
-        let token = Self::tokens((collection_id, start_idx));
+        let token = Self::tokens(collection_id, start_idx);
         ensure!(&token.owner == &who, Error::<T>::PermissionDenied);
 
         if amount > 1 {
@@ -322,10 +325,10 @@ impl<T: Config> Module<T> {
 
         AddressBalances::<T>::insert((collection_id, who.clone()), sender_balance);
         AddressBalances::<T>::insert((collection_id, receiver.clone()), receiver_balance);
-        Tokens::<T>::insert((collection_id, start_idx), receiver_token);
+        Tokens::<T>::insert(collection_id, start_idx, receiver_token);
 
         if !is_transfer_all {
-            Tokens::<T>::insert((collection_id, sender_start_idx), token);
+            Tokens::<T>::insert(collection_id, sender_start_idx, token);
         }
 
         Self::deposit_event(RawEvent::NonFungibleTokenTransferred(
@@ -396,7 +399,7 @@ impl<T: Config> Module<T> {
             Error::<T>::CollectionNotFound
         );
         ensure!(
-            Tokens::<T>::contains_key((collection_id, start_idx)),
+            Tokens::<T>::contains_key(collection_id, start_idx),
             Error::<T>::TokenNotFound
         );
 
@@ -408,7 +411,7 @@ impl<T: Config> Module<T> {
             );
         }
 
-        let token = Self::tokens((collection_id, start_idx));
+        let token = Self::tokens(collection_id, start_idx);
 
         ensure!(&token.owner == &who, Error::<T>::PermissionDenied);
 
@@ -437,11 +440,11 @@ impl<T: Config> Module<T> {
             <pallet_collection::Module<T>>::sub_total_supply(collection_id, amount)?;
 
         AddressBalances::<T>::insert((collection_id, who.clone()), balance);
-        Tokens::<T>::remove((collection_id, start_idx));
+        Tokens::<T>::remove(collection_id, start_idx);
         BurnedTokens::<T>::insert(collection_id, burn_amount);
 
         if !is_burn_all {
-            Tokens::<T>::insert((collection_id, new_start_idx), token);
+            Tokens::<T>::insert(collection_id, new_start_idx, token);
         }
         // [sender, amount, collection_id, start_idx]
         Self::deposit_event(RawEvent::NonFungibleTokenBurned(
@@ -455,7 +458,11 @@ impl<T: Config> Module<T> {
         Ok(())
     }
 
-    pub fn _burn_fungible(who: T::AccountId, collection_id: T::Hash, amount: u128) -> DispatchResult {
+    pub fn _burn_fungible(
+        who: T::AccountId,
+        collection_id: T::Hash,
+        amount: u128,
+    ) -> DispatchResult {
         ensure!(amount >= 1, Error::<T>::AmountLessThanOne);
 
         ensure!(
