@@ -42,6 +42,9 @@ decl_storage! {
 
         // (collection_id, start_idx) => nft_info
         pub Tokens get(fn tokens): map hasher(blake2_128_concat) (T::Hash, u128) =>  TokenInfo<T::AccountId>;
+
+        // collection_id => burned amount
+        pub BurnedTokens get(fn burned_tokens): map hasher(blake2_128_concat) T::Hash => u128;
     }
 }
 
@@ -58,14 +61,11 @@ decl_event!(
         FungibleTokenMinted(AccountId, Hash, u128, u128),
 
         // [sender, receiver, collection_id, start_idx, amount]
-        // TokenTransferred(AccountId, AccountId, u128, Hash, u128),
         NonFungibleTokenTransferred(AccountId, AccountId, Hash, u128, u128),
 
         // [sender, receiver, collection_id, amount]
         FungibleTokenTransferred(AccountId, AccountId, Hash, u128),
 
-        // [sender, amount, collection_id, start_idx, total_supply]
-        TokenBurned(AccountId, u128, Hash, u128, u128),
         // [sender, collection_id, start_idx, amount, total_supply]
         NonFungibleTokenBurned(AccountId, Hash, u128, u128, u128),
         // [sender, collection_id, amount, total_supply]
@@ -428,6 +428,9 @@ impl<T: Config> Module<T> {
             .checked_add(amount)
             .ok_or(Error::<T>::NumOverflow)?;
 
+        let burn_amount = Self::burned_tokens(collection_id)
+            .checked_add(amount)
+            .ok_or(Error::<T>::NumOverflow)?;
         let is_burn_all = &new_start_idx == &token.end_idx;
 
         let new_total_supply =
@@ -435,6 +438,7 @@ impl<T: Config> Module<T> {
 
         AddressBalances::<T>::insert((collection_id, who.clone()), balance);
         Tokens::<T>::remove((collection_id, start_idx));
+        BurnedTokens::<T>::insert(collection_id, burn_amount);
 
         if !is_burn_all {
             Tokens::<T>::insert((collection_id, new_start_idx), token);
@@ -471,12 +475,15 @@ impl<T: Config> Module<T> {
         ensure!(balance >= amount, Error::<T>::AmountTooLarge);
 
         let balance = balance.checked_sub(amount).ok_or(Error::<T>::NumOverflow)?;
+        let burn_amount = Self::burned_tokens(collection_id)
+            .checked_add(amount)
+            .ok_or(Error::<T>::NumOverflow)?;
 
         let new_total_supply =
             <pallet_collection::Module<T>>::sub_total_supply(collection_id, amount)?;
 
         AddressBalances::<T>::insert((collection_id, who.clone()), balance);
-
+        BurnedTokens::<T>::insert(collection_id, burn_amount);
         // [sender, amount, collection_id, start_idx]
         Self::deposit_event(RawEvent::FungibleTokenBurned(
             who,
