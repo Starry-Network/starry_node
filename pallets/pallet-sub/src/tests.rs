@@ -165,6 +165,14 @@ fn recover_failed() {
         assert_noop!(SubModule::recover(alice.clone(), not_available_collection_id), Error::<Test>::CollectionNotFound);
         assert_noop!(SubModule::recover(alice.clone(), collection_id), Error::<Test>::SubTokenNotFound);
         assert_noop!(SubModule::recover(bob, sub_token_collection_id), Error::<Test>::PermissionDenied);
+
+        let burn_amount = 2;
+        SubModule::mint_non_fungible(alice.clone(), sub_token_collection_id, vec![2,3,3], mint_amount).unwrap();
+        let last_sub_token_id = NFTModule::last_token_id(sub_token_collection_id);
+        let sub_token_start_idx = mint_amount - last_sub_token_id - 1;
+
+        NFTModule::burn_non_fungible(alice.clone(), sub_token_collection_id, sub_token_start_idx, burn_amount).unwrap();
+        assert_noop!(SubModule::recover(alice, sub_token_collection_id), Error::<Test>::BurnedtokensExistent);
         
     });
 }
