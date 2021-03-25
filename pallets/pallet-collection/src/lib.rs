@@ -117,19 +117,6 @@ impl<T: Config> Module<T> {
 
         Ok(collection_id)
     }
-    // pub fn create_collection(who: T::AccountId, uri: Vec<u8>) -> Result<T::Hash, DispatchError> {
-    //     let id = Self::generate_collection_id()?;
-
-    //     let collection = CollectionInfo {
-    //         owner: who,
-    //         total_supply: 0,
-    //         uri,
-    //     };
-
-    //     Collections::<T>::insert(id, collection);
-
-    //     Ok(id)
-    // }
 
     pub fn add_total_supply(collection_id: T::Hash, amount: u128) -> Result<u128, DispatchError> {
         let collection = Self::collections(collection_id);
