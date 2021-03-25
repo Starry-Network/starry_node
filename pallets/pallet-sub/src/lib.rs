@@ -84,7 +84,7 @@ decl_module! {
         #[weight = 10_000]
         pub fn create(origin, collection_id: T::Hash, start_idx: u128, is_fungible: bool) -> DispatchResult {
             let who = ensure_signed(origin.clone())?;
-            let token = <pallet_nft::Tokens<T>>::get((collection_id, start_idx));
+            let token = <pallet_nft::Tokens<T>>::get(collection_id, start_idx);
             <pallet_nft::Module<T>>::_transfer_non_fungible(who.clone(), Self::account_id(), collection_id, start_idx, 1)?;
             let sub_token_collection_id = <pallet_collection::Module<T>>::_create_collection(Self::account_id(), token.uri, is_fungible)?;
 
@@ -124,7 +124,11 @@ decl_module! {
             <pallet_nft::Module<T>>::transfer_non_fungible(frame_system::RawOrigin::Signed(Self::account_id()).into(), who, collection_id, start_idx, 1)?;
             SubTokenCreator::<T>::remove(sub_token_collection_id);
             SubTokens::<T>::remove(sub_token_collection_id);
-            
+
+            if collection.total_supply != 0 {
+                <pallet_nft::Tokens<T>>::remove_prefix(sub_token_collection_id);
+            }
+
             Ok(())
         }
     }

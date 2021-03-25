@@ -37,7 +37,7 @@ fn create_success() {
 
         assert_ok!(SubModule::create(alice, collection_id, start_idx, false));
 
-        let token = NFTModule::tokens((collection_id, start_idx));
+        let token = NFTModule::tokens(collection_id, start_idx);
 
         assert_eq!(token.owner, SubModule::account_id());
 
