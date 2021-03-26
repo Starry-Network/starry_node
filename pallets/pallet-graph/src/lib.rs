@@ -53,32 +53,6 @@ decl_module! {
 
         fn deposit_event() = default;
 
-        #[weight = 10_000]
-        pub fn create_graph(origin, uri: Vec<u8>) -> DispatchResult {
-            let who = ensure_signed(origin)?;
-            let graph_id = <pallet_collection::Module<T>>::_create_collection(Self::account_id(), uri, false)?;
-
-            GraphCreator::<T>::insert(graph_id, &who);
-
-            Self::deposit_event(RawEvent::GraphCreated(who, graph_id));
-
-            Ok(())
-        }
-
-        #[weight = 10_000]
-        pub fn mint(origin, receiver: T::AccountId, graph_id: T::Hash, uri: Vec<u8>) -> DispatchResult {
-            ensure!(GraphCreator::<T>::contains_key, Error::<T>::GraphNotFound);
-
-            let who = ensure_signed(origin)?;
-
-            ensure!(&Self::graph_creator(graph_id), &who);
-
-            let collection = <pallet_collection::Collections<T>>::get(graph_id);
-            <pallet_nft::Module<T>>::_mint_non_fungible(receiver, graph_id, 1, uri, &collection);
-
-            Ok(())
-        }
-
 		// link to other token
     }
 }
