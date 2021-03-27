@@ -26,9 +26,10 @@ pub trait Config: frame_system::Config + pallet_collection::Config + pallet_nft:
 
 decl_storage! {
     trait Store for Module<T: Config> as GraphModule {
-        // GraphCreator get(fn graph_creator): map hasher(blake2_128_concat)  T::Hash => T::AccountId;
         // Child(collection_id, token_id) => Parent(collection_id, token_id)
-        ChildToParent get(fn child_to_parent): map hasher(blake2_128_concat) (T::Hash, u128) => (T::Hash, u128)
+        ChildToParent get(fn child_to_parent): map hasher(blake2_128_concat) (T::Hash, u128) => (T::Hash, u128);
+        // Parent(collection_id, token_id) => Child(collection_id, token_id)
+        ParentToChild get(fn parent_to_child): map hasher(blake2_128_concat) (T::Hash, u128) => (T::Hash, u128);
     }
 }
 
@@ -40,16 +41,21 @@ decl_event!(
     {
         // (creator, graph_id)
         GraphCreated(AccountId, Hash),
+        // (child_collection_id, child_token_id, parent_collection_id, parent_token_id)
+        NonFungibleTokenLinked(Hash, u128, Hash, u128),
+        // (who, collection_id, token_id)
+        NonFungibleTokenRecovered(AccountId, Hash, u128),
     }
 );
 
 decl_error! {
     pub enum Error for Module<T: Config> {
-        GraphNotFound,
         PermissionDenied,
         ParentCollectionNotFound,
         RootTokenNotFound,
         CanNotLinkAncestorToDescendant,
+        CanNotRecoverNormalToken,
+        CanNotRecoverParentToken,
     }
 }
 
@@ -96,6 +102,41 @@ decl_module! {
             }
 
             ChildToParent::<T>::insert((child_collection_id, child_token_id), (parent_collection_id, parent_token_id));
+            ParentToChild::<T>::insert((parent_collection_id, parent_token_id), (child_collection_id, child_token_id));
+
+            Self::deposit_event(RawEvent::NonFungibleTokenLinked(
+                child_collection_id,
+                child_token_id,
+                parent_collection_id,
+                parent_token_id,
+            ));
+
+            Ok(())
+        }
+
+        #[weight = 10_000]
+        pub fn recover(origin, collection_id: T::Hash, token_id: u128) -> DispatchResult {
+            let who = ensure_signed(origin.clone())?;
+
+            ensure!(
+                ChildToParent::<T>::contains_key((collection_id, token_id)),
+                Error::<T>::CanNotRecoverNormalToken
+            );
+            // only child token can be recovered
+            ensure!(
+                !ParentToChild::<T>::contains_key((collection_id, token_id)),
+                Error::<T>::CanNotRecoverParentToken
+            );
+
+            let root_token_owner = Self::find_root_owner(collection_id, token_id)?;
+
+            ensure!(&root_token_owner == &who, Error::<T>::PermissionDenied);
+
+            <pallet_nft::Module<T>>::transfer_non_fungible(frame_system::RawOrigin::Signed(Self::account_id()).into(), who.clone(), collection_id, token_id, 1)?;
+
+            ChildToParent::<T>::remove((collection_id, token_id));
+
+            Self::deposit_event(RawEvent::NonFungibleTokenRecovered(who, collection_id, token_id));
 
             Ok(())
         }

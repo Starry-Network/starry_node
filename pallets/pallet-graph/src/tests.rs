@@ -2,7 +2,7 @@ use crate::{Error, mock::*};
 use frame_support::{assert_ok, assert_noop};
 
 #[test]
-fn create_graph() {
+fn link() {
 	new_test_ext().execute_with(|| {
 		// Dispatch a signed extrinsic.
 		let alice_address = 1;
@@ -59,5 +59,48 @@ fn create_graph() {
 
 		let is_ancestor = GraphModule::is_ancestor((child_collection_id, 5), (parent_collection_id, parent_token_id)).unwrap();
 		assert_eq!(is_ancestor, false);
+	});
+}
+
+#[test]
+fn recover() {
+	new_test_ext().execute_with(|| {
+		// Dispatch a signed extrinsic.
+		let alice_address = 1;
+		let alice = Origin::signed(alice_address);
+        let mint_amount = 10;
+		let parent_token_id = 0;
+
+        CollectionModule::create_collection(alice.clone(), vec![2, 3, 3], false).unwrap();
+
+        let nonce = CollectionModule::get_nonce();
+        let child_collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
+
+		CollectionModule::create_collection(alice.clone(), vec![2, 3, 3], false).unwrap();
+
+		let nonce = CollectionModule::get_nonce();
+        let parent_collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
+
+
+        assert_ok!(NFTModule::mint_non_fungible(
+            alice.clone(),
+            alice_address,
+            child_collection_id,
+            vec![2, 3, 3],
+            mint_amount
+        ));
+
+		assert_ok!(NFTModule::mint_non_fungible(
+            alice.clone(),
+            alice_address,
+            parent_collection_id,
+            vec![2, 3, 3],
+            mint_amount
+        ));
+
+		assert_ok!(GraphModule::link(alice.clone(), child_collection_id, 0, parent_collection_id, parent_token_id));
+
+		assert_ok!(GraphModule::link(alice.clone(), child_collection_id, 1, child_collection_id, 0));
+		assert_ok!(GraphModule::recover(alice.clone(), child_collection_id, 1));
 	});
 }
