@@ -4,7 +4,6 @@ use frame_support::{
     decl_error, decl_event, decl_module, decl_storage,
     dispatch::{DispatchError, DispatchResult},
     ensure,
-    traits::Get,
 };
 use frame_system::ensure_signed;
 use sp_runtime::{traits::AccountIdConversion, ModuleId};
@@ -47,15 +46,25 @@ decl_event!(
         GraphCreated(AccountId, Hash),
         // (child_collection_id, child_token_id, parent_collection_id, parent_token_id)
         NonFungibleTokenLinked(Hash, u128, Hash, u128),
+        // (who, fungible_collection, parent_collection_id, parent_token_id, amount)
+        FungibleTokenLinkedByUser(AccountId, Hash, Hash, u128, u128),
+        // (who, child_collection_id, child_token_id, fungible_collection, parent_collection_id, parent_token_id, amount)
+        FungibleTokenLinkedByChild(AccountId, Hash, u128, Hash, Hash, u128, u128),
         // (who, collection_id, token_id)
         NonFungibleTokenRecovered(AccountId, Hash, u128),
+        // (who, child_collection_id, child_token_id, fungible_collection, amount)
+        FungibleTokenRecovered(AccountId, Hash, u128, Hash, u128),
     }
 );
 
 decl_error! {
     pub enum Error for Module<T: Config> {
         PermissionDenied,
+        AmountTooLarge,
+        NumOverflow,
         ParentCollectionNotFound,
+        TokenNotFound,
+        ChildHadNoBalance,
         RootTokenNotFound,
         CanNotLinkAncestorToDescendant,
         CanNotRecoverNormalToken,
@@ -71,14 +80,14 @@ decl_module! {
 
         // link to other token
         #[weight = 10_000]
-        pub fn link(origin, child_collection_id: T::Hash, child_token_id: u128, parent_collection_id: T::Hash, parent_token_id: u128) -> DispatchResult {
+        pub fn link_non_fungible(origin, child_collection_id: T::Hash, child_token_id: u128, parent_collection_id: T::Hash, parent_token_id: u128) -> DispatchResult {
             ensure!(
                 <pallet_collection::Collections<T>>::contains_key(parent_collection_id),
                 Error::<T>::ParentCollectionNotFound
             );
             ensure!(
                 <pallet_nft::Tokens<T>>::contains_key(parent_collection_id, parent_token_id),
-                <pallet_nft::Error<T>>::TokenNotFound
+                Error::<T>::TokenNotFound
             );
 
 
@@ -112,7 +121,7 @@ decl_module! {
 
             ChildToParent::<T>::insert((child_collection_id, child_token_id), (parent_collection_id, parent_token_id));
             ParentToChild::<T>::insert((parent_collection_id, parent_token_id), (child_collection_id, child_token_id), ());
-           
+
             Self::deposit_event(RawEvent::NonFungibleTokenLinked(
                 child_collection_id,
                 child_token_id,
@@ -123,9 +132,67 @@ decl_module! {
             Ok(())
         }
 
+        #[weight = 10_000]
+        // if use polkadot.js can use Option<(T::Hash,u128)> normal, will change to it
+        // child_collection_id: Option<T::Hash>, child_token_id: Option<u128>
+        // pub fn link_fungible(origin, child_token: Option<(T::Hash,u128)>, fungible_collection_id: T::Hash, parent_collection_id: T::Hash, parent_token_id: u128, amount: u128) -> DispatchResult {
+        pub fn link_fungible(origin, child_collection_id: Option<T::Hash>, child_token_id: Option<u128>, fungible_collection_id: T::Hash, parent_collection_id: T::Hash, parent_token_id: u128, amount: u128) -> DispatchResult {
+
+            let who = ensure_signed(origin.clone())?;
+
+            ensure!(
+                <pallet_collection::Collections<T>>::contains_key(parent_collection_id),
+                Error::<T>::ParentCollectionNotFound
+            );
+            ensure!(
+                <pallet_nft::Tokens<T>>::contains_key(parent_collection_id, parent_token_id),
+                Error::<T>::TokenNotFound
+            );
+
+            let transfer_from_user = child_collection_id.is_none() || child_token_id.is_none();
+            // let transfer_from_user = child_token.is_none();
+            let parent_balance = Self::parent_balance((parent_collection_id, parent_token_id), fungible_collection_id).checked_add(amount).ok_or(Error::<T>::NumOverflow)?;
+
+            if transfer_from_user {
+                <pallet_nft::Module<T>>::transfer_fungible(origin, Self::account_id(), fungible_collection_id, amount)?;
+                ParentBalance::<T>::insert((parent_collection_id, parent_token_id), fungible_collection_id, parent_balance);
+
+                Self::deposit_event(RawEvent::FungibleTokenLinkedByUser(who,fungible_collection_id,parent_collection_id,parent_token_id,amount));
+            }
+            else {
+                if let (Some(child_collection_id), Some(child_token_id)) = (child_collection_id, child_token_id) {
+                // if let Some((child_collection_id, child_token_id)) = child_token {
+
+                    ensure!(ParentBalance::<T>::contains_key((child_collection_id, child_token_id), fungible_collection_id), Error::<T>::ChildHadNoBalance);
+
+                    let child_balance = Self::parent_balance((child_collection_id, child_token_id), fungible_collection_id);
+                    ensure!(child_balance>=amount, Error::<T>::AmountTooLarge);
+                    let child_balance = child_balance.checked_sub(amount).ok_or(Error::<T>::NumOverflow)?;
+
+                    let root_token_owner = Self::find_root_owner(child_collection_id, child_token_id)?;
+                    ensure!(&root_token_owner == &who, Error::<T>::PermissionDenied);
+
+                    ParentBalance::<T>::insert((child_collection_id, child_token_id), fungible_collection_id, child_balance);
+                    ParentBalance::<T>::insert((parent_collection_id, parent_token_id), fungible_collection_id, parent_balance);
+
+                    if child_balance == 0 {
+                        ParentBalance::<T>::remove((child_collection_id, child_token_id), fungible_collection_id);
+                    }
+
+                    Self::deposit_event(RawEvent::FungibleTokenLinkedByChild(who, child_collection_id, child_token_id,
+                        fungible_collection_id,
+                        parent_collection_id,
+                        parent_token_id,
+                        amount
+                    ));
+                }
+            }
+
+            Ok(())
+        }
 
         #[weight = 10_000]
-        pub fn recover(origin, collection_id: T::Hash, token_id: u128) -> DispatchResult {
+        pub fn recover_non_fungible(origin, collection_id: T::Hash, token_id: u128) -> DispatchResult {
             let who = ensure_signed(origin.clone())?;
 
             ensure!(
@@ -152,6 +219,31 @@ decl_module! {
 
             Ok(())
         }
+
+        #[weight = 10_000]
+        pub fn recover_fungible(origin, child_collection_id: T::Hash, child_token_id: u128, fungible_collection_id: T::Hash, amount: u128) -> DispatchResult {
+            let who = ensure_signed(origin.clone())?;
+
+            let child_balance = Self::parent_balance((child_collection_id, child_token_id), fungible_collection_id);
+            ensure!(child_balance >= amount, Error::<T>::AmountTooLarge);
+
+            let root_token_owner = Self::find_root_owner(child_collection_id, child_token_id)?;
+            ensure!(&root_token_owner == &who, Error::<T>::PermissionDenied);
+
+            let child_balance = child_balance.checked_sub(amount).ok_or(Error::<T>::NumOverflow)?;
+
+            <pallet_nft::Module<T>>::transfer_fungible(frame_system::RawOrigin::Signed(Self::account_id()).into(), who.clone(), fungible_collection_id, amount)?;
+            ParentBalance::<T>::insert((child_collection_id, child_token_id), fungible_collection_id, child_balance);
+
+            if child_balance == 0 {
+                ParentBalance::<T>::remove((child_collection_id, child_token_id), fungible_collection_id);
+            }
+
+            Self::deposit_event(RawEvent::FungibleTokenRecovered(who, child_collection_id, child_token_id, fungible_collection_id, amount));
+
+            Ok(())
+        }
+
     }
 }
 
