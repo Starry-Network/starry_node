@@ -99,7 +99,6 @@ decl_module! {
 
             if parent_token.owner == Self::account_id() {
                 let child_is_parent_ancestor = Self::is_ancestor((child_collection_id, child_token_id), (parent_collection_id, parent_token_id))?;
-                // ensure!(, Error::<T>::CanNotLinkAncestorToDescendant);
                 ensure!(
                     !child_is_parent_ancestor,
                     Error::<T>::CanNotLinkAncestorToDescendant
@@ -107,7 +106,8 @@ decl_module! {
             }
 
             if have_parent {
-                ParentToChild::<T>::remove((parent_collection_id, parent_token_id), (child_collection_id, child_token_id));
+                let (old_parent_collection_id, old_parent_token_id) = Self::child_to_parent((child_collection_id, child_token_id));
+                ParentToChild::<T>::remove((old_parent_collection_id, old_parent_token_id), (child_collection_id, child_token_id));
             }
 
             ChildToParent::<T>::insert((child_collection_id, child_token_id), (parent_collection_id, parent_token_id));
@@ -123,10 +123,6 @@ decl_module! {
             Ok(())
         }
 
-        // #[weight = 10_000]
-        // pub fn link_fungible_token(origin, child_collection_id, parent_collection_id, parent_token_id) -> DispatchResult {
-        //     Ok(())
-        // }
 
         #[weight = 10_000]
         pub fn recover(origin, collection_id: T::Hash, token_id: u128) -> DispatchResult {

@@ -46,10 +46,17 @@ fn link() {
 		assert_ok!(GraphModule::link(alice.clone(), child_collection_id, 5, child_collection_id, 4));
 
 
+
 		let token = NFTModule::tokens(child_collection_id, 2);
 		assert_eq!(token.owner, GraphModule::account_id());
 		let root_owner = GraphModule::find_root_owner(child_collection_id, 1).unwrap();
 		assert_eq!(root_owner, alice_address);
+
+		let is_ancestor = GraphModule::is_ancestor((parent_collection_id, parent_token_id), (child_collection_id, 0)).unwrap();
+		assert_eq!(is_ancestor, true);
+
+		let is_ancestor = GraphModule::is_ancestor((child_collection_id, 0), (parent_collection_id, parent_token_id)).unwrap();
+		assert_eq!(is_ancestor, false);
 
 		let is_ancestor = GraphModule::is_ancestor((parent_collection_id, parent_token_id), (child_collection_id, 4)).unwrap();
 		assert_eq!(is_ancestor, true);
@@ -59,6 +66,8 @@ fn link() {
 
 		let is_ancestor = GraphModule::is_ancestor((child_collection_id, 5), (parent_collection_id, parent_token_id)).unwrap();
 		assert_eq!(is_ancestor, false);
+
+		assert_ok!(GraphModule::link(alice.clone(), child_collection_id, 3, parent_collection_id, parent_token_id));
 	});
 }
 
