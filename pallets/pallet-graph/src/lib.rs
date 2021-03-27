@@ -23,13 +23,17 @@ const PALLET_ID: ModuleId = ModuleId(*b"GraphNFT");
 pub trait Config: frame_system::Config + pallet_collection::Config + pallet_nft::Config {
     type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 }
-
+// ToDo: 1. repalce ParentToChild to many to many 2. when link to other nft, rember remove it from parent to child
 decl_storage! {
     trait Store for Module<T: Config> as GraphModule {
         // Child(collection_id, token_id) => Parent(collection_id, token_id)
-        ChildToParent get(fn child_to_parent): map hasher(blake2_128_concat) (T::Hash, u128) => (T::Hash, u128);
+        pub ChildToParent get(fn child_to_parent): map hasher(blake2_128_concat) (T::Hash, u128) => (T::Hash, u128);
         // Parent(collection_id, token_id) => Child(collection_id, token_id)
-        ParentToChild get(fn parent_to_child): map hasher(blake2_128_concat) (T::Hash, u128) => (T::Hash, u128);
+        // pub ParentToChild get(fn parent_to_child): map hasher(blake2_128_concat) (T::Hash, u128) => Vec<(T::Hash, u128)>;
+        pub ParentToChild get(fn parent_to_child): double_map hasher(blake2_128_concat) (T::Hash, u128), hasher(blake2_128_concat) (T::Hash, u128) => ();
+
+        // (parent_token, child_collection_id) => balance
+        pub ParentBalance get(fn parent_balance): double_map hasher(blake2_128_concat) (T::Hash, u128), hasher(blake2_128_concat) T::Hash => u128;
     }
 }
 
@@ -79,8 +83,9 @@ decl_module! {
 
 
             let who = ensure_signed(origin.clone())?;
+            let have_parent = ChildToParent::<T>::contains_key((child_collection_id, child_token_id));
 
-            if ChildToParent::<T>::contains_key((child_collection_id, child_token_id)) {
+            if have_parent {
                 // if token in ChildToParent, it's owner is graph pallet.
                 let root_token_owner = Self::find_root_owner(child_collection_id, child_token_id)?;
                 ensure!(&root_token_owner == &who, Error::<T>::PermissionDenied);
@@ -101,9 +106,13 @@ decl_module! {
                 );
             }
 
-            ChildToParent::<T>::insert((child_collection_id, child_token_id), (parent_collection_id, parent_token_id));
-            ParentToChild::<T>::insert((parent_collection_id, parent_token_id), (child_collection_id, child_token_id));
+            if have_parent {
+                ParentToChild::<T>::remove((parent_collection_id, parent_token_id), (child_collection_id, child_token_id));
+            }
 
+            ChildToParent::<T>::insert((child_collection_id, child_token_id), (parent_collection_id, parent_token_id));
+            ParentToChild::<T>::insert((parent_collection_id, parent_token_id), (child_collection_id, child_token_id), ());
+           
             Self::deposit_event(RawEvent::NonFungibleTokenLinked(
                 child_collection_id,
                 child_token_id,
@@ -114,6 +123,11 @@ decl_module! {
             Ok(())
         }
 
+        // #[weight = 10_000]
+        // pub fn link_fungible_token(origin, child_collection_id, parent_collection_id, parent_token_id) -> DispatchResult {
+        //     Ok(())
+        // }
+
         #[weight = 10_000]
         pub fn recover(origin, collection_id: T::Hash, token_id: u128) -> DispatchResult {
             let who = ensure_signed(origin.clone())?;
@@ -122,9 +136,11 @@ decl_module! {
                 ChildToParent::<T>::contains_key((collection_id, token_id)),
                 Error::<T>::CanNotRecoverNormalToken
             );
+
             // only child token can be recovered
+            let mut maybe_children = ParentToChild::<T>::iter_prefix_values((collection_id, token_id));
             ensure!(
-                !ParentToChild::<T>::contains_key((collection_id, token_id)),
+                maybe_children.next().is_none(),
                 Error::<T>::CanNotRecoverParentToken
             );
 

@@ -99,8 +99,11 @@ fn recover() {
         ));
 
 		assert_ok!(GraphModule::link(alice.clone(), child_collection_id, 0, parent_collection_id, parent_token_id));
-
 		assert_ok!(GraphModule::link(alice.clone(), child_collection_id, 1, child_collection_id, 0));
+		
+		assert_noop!(GraphModule::recover(alice.clone(), child_collection_id, 0), Error::<Test>::CanNotRecoverParentToken);
+
 		assert_ok!(GraphModule::recover(alice.clone(), child_collection_id, 1));
+
 	});
 }
