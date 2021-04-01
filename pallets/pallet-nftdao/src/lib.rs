@@ -14,9 +14,12 @@ use codec::{Encode,Decode};
 use sp_runtime::{
 	traits::Dispatchable,
 };
-use sp_runtime::{traits::AccountIdConversion, ModuleId};
+use sp_runtime::{traits::{AccountIdConversion, Hash}, ModuleId};
+use sp_runtime::traits::BlakeTwo256;
 
 use sp_std::vec::Vec;
+
+use sp_core::{TypeId};
 
 #[cfg(test)]
 mod mock;
@@ -25,6 +28,15 @@ mod mock;
 mod tests;
 
 const PALLET_ID: ModuleId = ModuleId(*b"NFTDAO!!");
+
+#[derive(Clone, Copy, Eq, PartialEq, Encode, Decode)]
+pub struct DAOId(pub [u8; 32]);
+
+impl TypeId for DAOId {
+	const TYPE_ID: [u8; 4] = *b"dao!";
+}
+
+
 
 /// Configure the pallet by specifying the parameters and types on which it depends.
 pub trait Config: frame_system::Config {
@@ -135,6 +147,17 @@ impl<T: Config> Module<T> {
 	pub fn account_id() -> T::AccountId {
         PALLET_ID.into_account()
     }
+
+	pub fn dao_id(sender_address: T::AccountId) -> T::AccountId {
+		let hash = BlakeTwo256::hash(&(PALLET_ID, sender_address).encode());
+		
+		let id: [u8; 32] =  hash.into();
+		// let DAO_ID: DAOId = DAOId(*b"123456789011");
+		let dao_id: DAOId = DAOId(id);
+
+        dao_id.into_account()
+    }
+
     pub fn run(
         data: Vec<u8>,
     ) -> Result<bool, DispatchError> {
@@ -143,8 +166,6 @@ impl<T: Config> Module<T> {
 			let self_origin = frame_system::RawOrigin::Signed(Self::account_id()).into();
 			// Ok(action.dispatch_bypass_filter(seld_origin).is_ok())
 			Ok(action.dispatch(self_origin).is_ok())
-
-
 			
 		} else {
 			Err(Error::<T>::DecodeFailed)?
