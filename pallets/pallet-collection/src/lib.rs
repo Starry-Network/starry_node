@@ -86,16 +86,21 @@ impl<T: Config> Module<T> {
 
         Ok(collection_id)
     }
+    fn nonce_increment() -> Result<u128, DispatchError>  {
+        let nonce = Nonce::try_mutate(|nonce| -> Result<u128, DispatchError> {
+            *nonce = nonce.checked_add(1).ok_or(Error::<T>::NumOverflow)?;
+            Ok(*nonce)
+        })?;
+
+        Ok(nonce)
+    }
 
     pub fn _create_collection(
         who: T::AccountId,
         uri: Vec<u8>,
         is_fungible: bool,
     ) -> Result<T::Hash, DispatchError> {
-        let nonce = Nonce::try_mutate(|nonce| -> Result<u128, DispatchError> {
-            *nonce = nonce.checked_add(1).ok_or(Error::<T>::NumOverflow)?;
-            Ok(*nonce)
-        })?;
+        let nonce = Self::nonce_increment()?;
 
         let collection_id = Self::generate_collection_id(nonce)?;
 
