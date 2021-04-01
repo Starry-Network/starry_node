@@ -359,13 +359,16 @@ fn recover_fungible() {
             1
         ));
 
-        assert_noop!(GraphModule::recover_fungible(
-            bob.clone(),
-            parent_collection_id,
-            0,
-            fungible_collection_id,
-            1
-        ), Error::<Test>::PermissionDenied);
+        assert_noop!(
+            GraphModule::recover_fungible(
+                bob.clone(),
+                parent_collection_id,
+                0,
+                fungible_collection_id,
+                1
+            ),
+            Error::<Test>::PermissionDenied
+        );
 
         assert_ok!(GraphModule::recover_fungible(
             alice.clone(),
@@ -374,6 +377,5 @@ fn recover_fungible() {
             fungible_collection_id,
             1
         ));
-
     });
 }

@@ -125,7 +125,7 @@ decl_module! {
             }
 
             let (collection_id, start_idx) = Self::sub_tokens(sub_token_collection_id);
-            <pallet_nft::Module<T>>::transfer_non_fungible(frame_system::RawOrigin::Signed(Self::account_id()).into(), who, collection_id, start_idx, 1)?;
+            <pallet_nft::Module<T>>::transfer_non_fungible(frame_system::RawOrigin::Signed(Self::account_id()).into(), who.clone(), collection_id, start_idx, 1)?;
 
             SubTokenCreator::<T>::remove(sub_token_collection_id);
             SubTokens::<T>::remove(sub_token_collection_id);
