@@ -289,6 +289,7 @@ impl pallet_graph::Config for Runtime {
 
 impl pallet_nftdao::Config for Runtime {
 	type Event = Event;
+	type Action = Call;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.

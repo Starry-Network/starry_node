@@ -4,8 +4,19 @@
 /// Learn more about FRAME and the core library of Substrate FRAME pallets:
 /// https://substrate.dev/docs/en/knowledgebase/runtime/frame
 
-use frame_support::{decl_module, decl_storage, decl_event, decl_error, dispatch, traits::Get};
+use frame_support::{decl_module, decl_storage, decl_event, decl_error, dispatch::{DispatchError, DispatchResult, UnfilteredDispatchable},Parameter, traits::Get};
 use frame_system::ensure_signed;
+use codec::{Encode,Decode};
+// use sp_runtime::{
+// 	DispatchResult, DispatchError, RuntimeDebug,
+// 	traits::{Zero, Hash, Dispatchable, Saturating, Bounded},
+// };
+use sp_runtime::{
+	traits::Dispatchable,
+};
+use sp_runtime::{traits::AccountIdConversion, ModuleId};
+
+use sp_std::vec::Vec;
 
 #[cfg(test)]
 mod mock;
@@ -13,10 +24,15 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+const PALLET_ID: ModuleId = ModuleId(*b"NFTDAO!!");
+
 /// Configure the pallet by specifying the parameters and types on which it depends.
 pub trait Config: frame_system::Config {
 	/// Because this pallet emits events, it depends on the runtime's definition of an event.
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
+	type Action: Parameter + Dispatchable<Origin=Self::Origin> + From<Call<Self>>;
+	// type Action: Parameter + UnfilteredDispatchable<Origin=Self::Origin> + From<Call<Self>>;
+
 }
 
 // The pallet's runtime storage items.
@@ -49,6 +65,7 @@ decl_error! {
 		NoneValue,
 		/// Errors should have helpful documentation associated with them.
 		StorageOverflow,
+		DecodeFailed,
 	}
 }
 
@@ -66,7 +83,7 @@ decl_module! {
 		/// An example dispatchable that takes a singles value as a parameter, writes the value to
 		/// storage and emits an event. This function must be dispatched by a signed extrinsic.
 		#[weight = 10_000 + T::DbWeight::get().writes(1)]
-		pub fn do_something(origin, something: u32) -> dispatch::DispatchResult {
+		pub fn do_something(origin, something: u32) -> DispatchResult {
 			// Check that the extrinsic was signed and get the signer.
 			// This function will return an error if the extrinsic is not signed.
 			// https://substrate.dev/docs/en/knowledgebase/runtime/origin
@@ -81,9 +98,18 @@ decl_module! {
 			Ok(())
 		}
 
+		// #[weight = 10_000 ]
+		// pub fn run(origin, data: Vec<u8>) -> dispatch::DispatchResult {
+		// 	let _who = ensure_signed(origin)?;
+		// 	if let Ok(action) = T::Action::decode(&mut &data[..]) {
+		// 		let ok = action.dispatch(frame_system::RawOrigin::Root.into()).is_ok();
+		// 	}
+		// 	Ok(())
+		// }
+	
 		/// An example dispatchable that may throw a custom error.
 		#[weight = 10_000 + T::DbWeight::get().reads_writes(1,1)]
-		pub fn cause_error(origin) -> dispatch::DispatchResult {
+		pub fn cause_error(origin) -> DispatchResult {
 			let _who = ensure_signed(origin)?;
 
 			// Read a value from storage.
@@ -98,6 +124,30 @@ decl_module! {
 					Ok(())
 				},
 			}
+		}
+	
+		
+	}
+}
+
+
+impl<T: Config> Module<T> {
+	pub fn account_id() -> T::AccountId {
+        PALLET_ID.into_account()
+    }
+    pub fn run(
+        data: Vec<u8>,
+    ) -> Result<bool, DispatchError> {
+		if let Ok(action) = T::Action::decode(&mut &data[..]) {
+			// Ok(action.dispatch(frame_system::RawOrigin::Root.into()).is_ok())
+			let self_origin = frame_system::RawOrigin::Signed(Self::account_id()).into();
+			// Ok(action.dispatch_bypass_filter(seld_origin).is_ok())
+			Ok(action.dispatch(self_origin).is_ok())
+
+
+			
+		} else {
+			Err(Error::<T>::DecodeFailed)?
 		}
 	}
 }

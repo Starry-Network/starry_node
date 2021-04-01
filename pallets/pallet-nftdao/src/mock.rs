@@ -1,4 +1,4 @@
-use crate as pallet_template;
+use crate as pallet_dao;
 use sp_core::H256;
 use frame_support::parameter_types;
 use sp_runtime::{
@@ -17,7 +17,9 @@ frame_support::construct_runtime!(
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
 		System: frame_system::{Module, Call, Config, Storage, Event<T>},
-		TemplateModule: pallet_template::{Module, Call, Storage, Event<T>},
+		DaoModule: pallet_dao::{Module, Call, Storage, Event<T>},
+		Template: pallet_template::{Module, Call, Storage, Event<T>},
+		// Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
 	}
 );
 
@@ -45,15 +47,37 @@ impl system::Config for Test {
 	type Version = ();
 	type PalletInfo = PalletInfo;
 	type AccountData = ();
+	// type AccountData = pallet_balances::AccountData<u64>;
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
 	type SystemWeightInfo = ();
 	type SS58Prefix = SS58Prefix;
 }
 
+impl pallet_dao::Config for Test {
+	type Event = Event;
+	type Action = Call;
+}
+
 impl pallet_template::Config for Test {
 	type Event = Event;
 }
+
+// parameter_types! {
+// 	pub const ExistentialDeposit: u64 = 1;
+// }
+
+// impl pallet_balances::Config for Test {
+// 	type MaxLocks = ();
+// 	type Balance = u64;
+// 	type Event = Event;
+// 	type DustRemoval = ();
+// 	type ExistentialDeposit = ExistentialDeposit;
+// 	type AccountStore = System;
+// 	type WeightInfo = ();
+// }
+
+
 
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
