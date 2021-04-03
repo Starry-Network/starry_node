@@ -25,11 +25,14 @@ sp-std = { version = "3.0.0", default-features = false }
 sp-runtime = { default-features = false, version = '3.0.0' }
 sp-core = { default-features = false, version = '3.0.0' }
 pallet-template = { path="../template", default-features = false, version = '3.0.0'}
-
+pallet-collection = { path="../pallet-collection", default-features = false, version = '3.0.0'}
+pallet-nft = { path="../pallet-nft", default-features = false, version = '3.0.0'}
+ 
 [dev-dependencies]
 serde = { version = "1.0.119" }
 # sp-core = { default-features = false, version = '3.0.0' }
 sp-io = { default-features = false, version = '3.0.0' }
+pallet-balances = { default-features = false, version = '3.0.0' }
 
 [features]
 default = ['std']
@@ -41,4 +44,7 @@ std = [
     'frame-support/std',
     'frame-system/std',
     'pallet-template/std',
+    'pallet-collection/std',
+    'pallet-nft/std',
+    'pallet-balances/std'
 ]

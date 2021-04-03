@@ -62,10 +62,13 @@ impl pallet_collection::Config for Test {
 
 impl pallet_nft::Config for Test {
     type Event = Event;
+    type Collection = CollectionModule;
 }
 
 impl pallet_graph::Config for Test {
     type Event = Event;
+    type Collection = CollectionModule;
+    type NFT = NFTModule;
 }
 
 // Build genesis storage according to the mock runtime.

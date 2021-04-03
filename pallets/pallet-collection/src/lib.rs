@@ -79,14 +79,38 @@ decl_module! {
     }
 }
 
-impl<T: Config> Module<T> {
-    pub fn generate_collection_id(nonce: u128) -> Result<T::Hash, DispatchError> {
+pub trait CollectionInterface<Hash, AccountId> {
+    fn collection_exist(collection_id: Hash) -> bool;
+    fn get_collection(collection_id: Hash) -> CollectionInfo<AccountId>;
+    fn generate_collection_id(nonce: u128) -> Result<Hash, DispatchError>;
+    fn nonce_increment() -> Result<u128, DispatchError>;
+    fn _create_collection(
+        who: AccountId,
+        uri: Vec<u8>,
+        is_fungible: bool,
+    ) -> Result<Hash, DispatchError>;
+    fn destory_collection(collection_id: &Hash);
+    fn add_total_supply(collection_id: Hash, amount: u128) -> Result<u128, DispatchError>;
+    fn sub_total_supply(collection_id: Hash, amount: u128) -> Result<u128, DispatchError>;
+}
+
+impl<T: Config> CollectionInterface<T::Hash, T::AccountId> for Module<T> {
+    fn collection_exist(collection_id: T::Hash) -> bool {
+        Collections::<T>::contains_key(collection_id)
+    }
+
+    fn get_collection(collection_id: T::Hash) -> CollectionInfo<T::AccountId> {
+        Self::collections(collection_id)
+    }
+
+    fn generate_collection_id(nonce: u128) -> Result<T::Hash, DispatchError> {
         let seed = T::RandomnessSource::random_seed();
         let collection_id = T::Hashing::hash(&(PALLET_ID, seed, nonce).encode());
 
         Ok(collection_id)
     }
-    fn nonce_increment() -> Result<u128, DispatchError>  {
+
+    fn nonce_increment() -> Result<u128, DispatchError> {
         let nonce = Nonce::try_mutate(|nonce| -> Result<u128, DispatchError> {
             *nonce = nonce.checked_add(1).ok_or(Error::<T>::NumOverflow)?;
             Ok(*nonce)
@@ -95,7 +119,7 @@ impl<T: Config> Module<T> {
         Ok(nonce)
     }
 
-    pub fn _create_collection(
+    fn _create_collection(
         who: T::AccountId,
         uri: Vec<u8>,
         is_fungible: bool,
@@ -122,7 +146,11 @@ impl<T: Config> Module<T> {
         Ok(collection_id)
     }
 
-    pub fn add_total_supply(collection_id: T::Hash, amount: u128) -> Result<u128, DispatchError> {
+    fn destory_collection(collection_id: &T::Hash) {
+        Collections::<T>::remove(collection_id)
+    }
+
+    fn add_total_supply(collection_id: T::Hash, amount: u128) -> Result<u128, DispatchError> {
         let collection = Self::collections(collection_id);
 
         let total_supply = collection
@@ -140,7 +168,7 @@ impl<T: Config> Module<T> {
         Ok(total_supply)
     }
 
-    pub fn sub_total_supply(collection_id: T::Hash, amount: u128) -> Result<u128, DispatchError> {
+    fn sub_total_supply(collection_id: T::Hash, amount: u128) -> Result<u128, DispatchError> {
         let collection = Self::collections(collection_id);
 
         let total_supply = collection

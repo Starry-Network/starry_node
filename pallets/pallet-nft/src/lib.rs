@@ -5,8 +5,9 @@ use frame_support::{
     decl_error, decl_event, decl_module, decl_storage, dispatch::DispatchResult, ensure,
 };
 use frame_system::ensure_signed;
-use pallet_collection;
+use pallet_collection::{TokenType, CollectionInfo, CollectionInterface};
 use sp_std::vec::Vec;
+
 
 #[cfg(test)]
 mod mock;
@@ -21,15 +22,10 @@ pub struct TokenInfo<AccountId> {
     pub uri: Vec<u8>,
 }
 
-#[derive(Encode, Decode, Copy, Clone, PartialEq, Eq)]
-pub enum TokenType {
-    NonFungible,
-    Fungible,
-}
-
-pub trait Config: frame_system::Config + pallet_collection::Config {
+pub trait Config: frame_system::Config {
     /// Because this pallet emits events, it depends on the runtime's definition of an event.
     type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
+    type Collection: CollectionInterface<Self::Hash, Self::AccountId>;
 }
 
 decl_storage! {
@@ -95,13 +91,12 @@ decl_module! {
         #[weight = 10_000]
         pub fn mint_fungible(origin, receiver: T::AccountId, collection_id: T::Hash, amount: u128) -> DispatchResult {
             let who = ensure_signed(origin)?;
-
             ensure!(
-                <pallet_collection::Collections<T>>::contains_key(collection_id),
+                T::Collection::collection_exist(collection_id),
                 Error::<T>::CollectionNotFound
             );
 
-            let collection = <pallet_collection::Collections<T>>::get(collection_id);
+            let collection = T::Collection::get_collection(collection_id);
             ensure!(collection.owner == who, Error::<T>::PermissionDenied);
 
             Self::_mint_fungible(receiver, collection_id, amount, &collection)?;
@@ -112,13 +107,13 @@ decl_module! {
         #[weight = 10_000]
         pub fn mint_non_fungible(origin, receiver: T::AccountId, collection_id: T::Hash, uri: Vec<u8>, amount:u128) -> DispatchResult {
             ensure!(
-                <pallet_collection::Collections<T>>::contains_key(collection_id),
+                T::Collection::collection_exist(collection_id),
                 Error::<T>::CollectionNotFound
             );
 
             let who = ensure_signed(origin)?;
             // ensure collection owner = origin
-            let collection = <pallet_collection::Collections<T>>::get(collection_id);
+            let collection =T::Collection::get_collection(collection_id);
             ensure!(collection.owner == who, Error::<T>::PermissionDenied);
 
             Self::_mint_non_fungible(receiver, collection_id, amount, uri, &collection)?;
@@ -162,19 +157,90 @@ decl_module! {
     }
 }
 
-impl<T: Config> Module<T> {
-    pub fn _mint_non_fungible(
+pub trait NFTInterface<Hash, AccountId> {
+    fn token_exist(collection_id: Hash, token_id: u128) -> bool;
+
+    fn get_nft_token(collection_id: Hash, token_id: u128) -> TokenInfo<AccountId>;
+
+    fn get_balance(collection_id: &Hash, who: &AccountId) -> u128;
+
+    fn get_burned_amount(collection_id: &Hash) -> u128;
+
+    fn destory_collection(collection_id: &Hash);
+
+    fn _mint_non_fungible(
+        receiver: AccountId,
+        collection_id: Hash,
+        amount: u128,
+        uri: Vec<u8>,
+        collection: &CollectionInfo<AccountId>,
+    ) -> DispatchResult;
+
+    fn _mint_fungible(
+        receiver: AccountId,
+        collection_id: Hash,
+        amount: u128,
+        collection: &CollectionInfo<AccountId>,
+    ) -> DispatchResult;
+
+    fn _transfer_non_fungible(
+        who: AccountId,
+        receiver: AccountId,
+        collection_id: Hash,
+        start_idx: u128,
+        amount: u128,
+    ) -> DispatchResult;
+
+    fn _transfer_fungible(
+        who: AccountId,
+        receiver: AccountId,
+        collection_id: Hash,
+        amount: u128,
+    ) -> DispatchResult;
+
+    fn _burn_non_fungible(
+        who: AccountId,
+        collection_id: Hash,
+        start_idx: u128,
+        amount: u128,
+    ) -> DispatchResult;
+
+    fn _burn_fungible(who: AccountId, collection_id: Hash, amount: u128) -> DispatchResult;
+}
+
+impl<T: Config> NFTInterface<T::Hash, T::AccountId> for Module<T> {
+    fn token_exist(collection_id: T::Hash, token_id: u128) -> bool {
+        Tokens::<T>::contains_key(collection_id, token_id)
+    }
+
+    fn get_nft_token(collection_id: T::Hash, token_id: u128) -> TokenInfo<T::AccountId> {
+        Self::tokens(collection_id, token_id)
+    }
+
+    fn get_balance(collection_id: &T::Hash, who: &T::AccountId) -> u128 {
+       Self::address_balances((collection_id, who))
+    }
+
+    fn get_burned_amount(collection_id: &T::Hash) -> u128 {
+        Self::burned_tokens(collection_id)
+    }
+
+    fn destory_collection(collection_id: &T::Hash) {
+        Tokens::<T>::remove_prefix(collection_id)
+    }
+
+    fn _mint_non_fungible(
         receiver: T::AccountId,
         collection_id: T::Hash,
         amount: u128,
         uri: Vec<u8>,
-        collection: &pallet_collection::CollectionInfo<T::AccountId>,
+        collection: &CollectionInfo<T::AccountId>,
     ) -> DispatchResult {
         ensure!(amount >= 1, Error::<T>::AmountLessThanOne);
 
         if let Some(token_type) = collection.token_type {
             ensure!(
-                token_type == pallet_collection::TokenType::NonFungible,
+                token_type == TokenType::NonFungible,
                 Error::<T>::WrongTokenType
             );
         }
@@ -202,8 +268,9 @@ impl<T: Config> Module<T> {
             .checked_add(amount)
             .ok_or(Error::<T>::NumOverflow)?;
 
-        let new_total_supply =
-            <pallet_collection::Module<T>>::add_total_supply(collection_id, amount)?;
+        // let new_total_supply =
+        //     <pallet_collection::Module<T>>::add_total_supply(collection_id, amount)?;
+        let new_total_supply = T::Collection::add_total_supply(collection_id, amount)?;
 
         LastTokenId::<T>::insert(collection_id, end_idx);
         AddressBalances::<T>::insert((collection_id, &receiver), owner_balance);
@@ -221,17 +288,17 @@ impl<T: Config> Module<T> {
         Ok(())
     }
 
-    pub fn _mint_fungible(
+    fn _mint_fungible(
         receiver: T::AccountId,
         collection_id: T::Hash,
         amount: u128,
-        collection: &pallet_collection::CollectionInfo<T::AccountId>,
+        collection: &CollectionInfo<T::AccountId>,
     ) -> DispatchResult {
         ensure!(amount >= 1, Error::<T>::AmountLessThanOne);
 
         if let Some(token_type) = collection.token_type {
             ensure!(
-                token_type == pallet_collection::TokenType::Fungible,
+                token_type == TokenType::Fungible,
                 Error::<T>::WrongTokenType
             );
         }
@@ -240,8 +307,10 @@ impl<T: Config> Module<T> {
             .checked_add(amount)
             .ok_or(Error::<T>::NumOverflow)?;
 
-        let new_total_supply =
-            <pallet_collection::Module<T>>::add_total_supply(collection_id, amount)?;
+        let new_total_supply = T::Collection::add_total_supply(collection_id, amount)?;
+
+        // let new_total_supply =
+        //     <pallet_collection::Module<T>>::add_total_supply(collection_id, amount)?;
 
         AddressBalances::<T>::insert((collection_id, &receiver), owner_balance);
 
@@ -256,7 +325,7 @@ impl<T: Config> Module<T> {
         Ok(())
     }
 
-    pub fn _transfer_non_fungible(
+    fn _transfer_non_fungible(
         who: T::AccountId,
         receiver: T::AccountId,
         collection_id: T::Hash,
@@ -267,22 +336,22 @@ impl<T: Config> Module<T> {
         ensure!(amount >= 1, Error::<T>::AmountLessThanOne);
 
         ensure!(
-            <pallet_collection::Collections<T>>::contains_key(collection_id),
+            T::Collection::collection_exist(collection_id),
             Error::<T>::CollectionNotFound
         );
-
-        let collection = <pallet_collection::Collections<T>>::get(collection_id);
-        if let Some(token_type) = collection.token_type {
-            ensure!(
-                token_type == pallet_collection::TokenType::NonFungible,
-                Error::<T>::WrongTokenType
-            );
-        }
 
         ensure!(
             Tokens::<T>::contains_key(collection_id, start_idx),
             Error::<T>::TokenNotFound
         );
+
+        let collection = T::Collection::get_collection(collection_id);
+        if let Some(token_type) = collection.token_type {
+            ensure!(
+                token_type == TokenType::NonFungible,
+                Error::<T>::WrongTokenType
+            );
+        }
 
         let token = Self::tokens(collection_id, start_idx);
         ensure!(&token.owner == &who, Error::<T>::PermissionDenied);
@@ -338,7 +407,7 @@ impl<T: Config> Module<T> {
         Ok(())
     }
 
-    pub fn _transfer_fungible(
+    fn _transfer_fungible(
         who: T::AccountId,
         receiver: T::AccountId,
         collection_id: T::Hash,
@@ -347,14 +416,14 @@ impl<T: Config> Module<T> {
         ensure!(amount >= 1, Error::<T>::AmountLessThanOne);
         ensure!(&who != &receiver, Error::<T>::ReceiverIsSender);
         ensure!(
-            <pallet_collection::Collections<T>>::contains_key(collection_id),
+            T::Collection::collection_exist(collection_id),
             Error::<T>::CollectionNotFound
         );
 
-        let collection = <pallet_collection::Collections<T>>::get(collection_id);
+        let collection = T::Collection::get_collection(collection_id);
         if let Some(token_type) = collection.token_type {
             ensure!(
-                token_type == pallet_collection::TokenType::Fungible,
+                token_type == TokenType::Fungible,
                 Error::<T>::WrongTokenType
             );
         }
@@ -382,7 +451,7 @@ impl<T: Config> Module<T> {
         Ok(())
     }
 
-    pub fn _burn_non_fungible(
+    fn _burn_non_fungible(
         who: T::AccountId,
         collection_id: T::Hash,
         start_idx: u128,
@@ -391,7 +460,7 @@ impl<T: Config> Module<T> {
         ensure!(amount >= 1, Error::<T>::AmountLessThanOne);
 
         ensure!(
-            <pallet_collection::Collections<T>>::contains_key(collection_id),
+            T::Collection::collection_exist(collection_id),
             Error::<T>::CollectionNotFound
         );
         ensure!(
@@ -399,10 +468,10 @@ impl<T: Config> Module<T> {
             Error::<T>::TokenNotFound
         );
 
-        let collection = <pallet_collection::Collections<T>>::get(collection_id);
+        let collection = T::Collection::get_collection(collection_id);
         if let Some(token_type) = collection.token_type {
             ensure!(
-                token_type == pallet_collection::TokenType::NonFungible,
+                token_type == TokenType::NonFungible,
                 Error::<T>::WrongTokenType
             );
         }
@@ -432,8 +501,7 @@ impl<T: Config> Module<T> {
             .ok_or(Error::<T>::NumOverflow)?;
         let is_burn_all = &new_start_idx == &token.end_idx;
 
-        let new_total_supply =
-            <pallet_collection::Module<T>>::sub_total_supply(collection_id, amount)?;
+        let new_total_supply = T::Collection::sub_total_supply(collection_id, amount)?;
 
         AddressBalances::<T>::insert((collection_id, who.clone()), balance);
         Tokens::<T>::remove(collection_id, start_idx);
@@ -454,7 +522,7 @@ impl<T: Config> Module<T> {
         Ok(())
     }
 
-    pub fn _burn_fungible(
+    fn _burn_fungible(
         who: T::AccountId,
         collection_id: T::Hash,
         amount: u128,
@@ -462,14 +530,14 @@ impl<T: Config> Module<T> {
         ensure!(amount >= 1, Error::<T>::AmountLessThanOne);
 
         ensure!(
-            <pallet_collection::Collections<T>>::contains_key(collection_id),
+            T::Collection::collection_exist(collection_id),
             Error::<T>::CollectionNotFound
         );
 
-        let collection = <pallet_collection::Collections<T>>::get(collection_id);
+        let collection = T::Collection::get_collection(collection_id);
         if let Some(token_type) = collection.token_type {
             ensure!(
-                token_type == pallet_collection::TokenType::Fungible,
+                token_type == TokenType::Fungible,
                 Error::<T>::WrongTokenType
             );
         }
@@ -482,8 +550,7 @@ impl<T: Config> Module<T> {
             .checked_add(amount)
             .ok_or(Error::<T>::NumOverflow)?;
 
-        let new_total_supply =
-            <pallet_collection::Module<T>>::sub_total_supply(collection_id, amount)?;
+        let new_total_supply = T::Collection::sub_total_supply(collection_id, amount)?;
 
         AddressBalances::<T>::insert((collection_id, who.clone()), balance);
         BurnedTokens::<T>::insert(collection_id, burn_amount);

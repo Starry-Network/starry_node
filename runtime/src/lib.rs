@@ -276,20 +276,28 @@ impl pallet_collection::Config for Runtime {
 }
 
 impl pallet_nft::Config for Runtime {
+	type Collection = CollectionModule;
 	type Event = Event;
 }
 
 impl pallet_sub::Config for Runtime {
 	type Event = Event;
+	type Collection = CollectionModule;
+	type NFT = NFTModule;
 }
 
 impl pallet_graph::Config for Runtime {
 	type Event = Event;
+	type Collection = CollectionModule;
+	type NFT = NFTModule;
 }
 
 impl pallet_nftdao::Config for Runtime {
 	type Event = Event;
 	type Action = Call;
+	type RandomnessSource = RandomnessCollectiveFlip;
+	type Currency = Balances;
+	type NFT = NFTModule;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.

@@ -1,5 +1,6 @@
 use crate::{mock::*, Error};
 use frame_support::{assert_noop, assert_ok};
+use pallet_collection::CollectionInterface;
 
 #[test]
 fn mint_non_fungible_success() {
@@ -9,7 +10,7 @@ fn mint_non_fungible_success() {
         CollectionModule::create_collection(alice.clone(), vec![2, 3, 3], false).unwrap();
 
         let nonce = CollectionModule::get_nonce();
-        let collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
+        let collection_id = <CollectionModule as CollectionInterface<_, _>>::generate_collection_id(nonce).unwrap();
 
         let mint_amount = 5;
 
@@ -40,7 +41,7 @@ fn mint_non_fungible_success() {
 
         let collection = CollectionModule::collections(collection_id);
 
-        assert_eq!(collection.total_supply, mint_amount)
+        assert_eq!(collection.total_supply, mint_amount);
     });
 }
 
@@ -53,7 +54,7 @@ fn mint_non_fungible_failed() {
         CollectionModule::create_collection(alice.clone(), vec![2, 3, 3], false).unwrap();
 
         let nonce = CollectionModule::get_nonce();
-        let collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
+        let collection_id = <CollectionModule as CollectionInterface<_, _>>::generate_collection_id(nonce).unwrap();
         let not_available_collection_id =
             CollectionModule::generate_collection_id(nonce + 1).unwrap();
         let mint_amount = 5;
@@ -90,7 +91,7 @@ fn mint_fungible_success() {
         CollectionModule::create_collection(alice.clone(), vec![2, 3, 3], true).unwrap();
 
         let nonce = CollectionModule::get_nonce();
-        let collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
+        let collection_id = <CollectionModule as CollectionInterface<_, _>>::generate_collection_id(nonce).unwrap();
         let mint_amount = 5;
 
         assert_ok!(NFTModule::mint_fungible(
@@ -119,7 +120,7 @@ fn mint_fungible_failed() {
         CollectionModule::create_collection(alice.clone(), vec![2, 3, 3], true).unwrap();
 
         let nonce = CollectionModule::get_nonce();
-        let collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
+        let collection_id = <CollectionModule as CollectionInterface<_, _>>::generate_collection_id(nonce).unwrap();
         let not_available_collection_id =
             CollectionModule::generate_collection_id(nonce + 1).unwrap();
         let mint_amount = 5;
@@ -151,7 +152,7 @@ fn transfer_non_fungible_success() {
         CollectionModule::create_collection(alice.clone(), vec![2, 3, 3], false).unwrap();
 
         let nonce = CollectionModule::get_nonce();
-        let collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
+        let collection_id = <CollectionModule as CollectionInterface<_, _>>::generate_collection_id(nonce).unwrap();
         let mint_amount = 5;
         NFTModule::mint_non_fungible(
             alice.clone(),
@@ -211,7 +212,7 @@ fn transfer_non_fungible_failed() {
         CollectionModule::create_collection(alice.clone(), vec![2, 3, 3], false).unwrap();
 
         let nonce = CollectionModule::get_nonce();
-        let collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
+        let collection_id = <CollectionModule as CollectionInterface<_, _>>::generate_collection_id(nonce).unwrap();
         let mint_amount = 5;
         NFTModule::mint_non_fungible(
             alice.clone(),
@@ -306,7 +307,7 @@ fn transfer_fungible_success() {
         CollectionModule::create_collection(alice.clone(), vec![2, 3, 3], true).unwrap();
 
         let nonce = CollectionModule::get_nonce();
-        let collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
+        let collection_id = <CollectionModule as CollectionInterface<_, _>>::generate_collection_id(nonce).unwrap();
         let mint_amount = 5;
         NFTModule::mint_fungible(alice.clone(), alice_address, collection_id, mint_amount).unwrap();
 
@@ -343,7 +344,7 @@ fn transfer_fungible_failed() {
         CollectionModule::create_collection(alice.clone(), vec![2, 3, 3], true).unwrap();
 
         let nonce = CollectionModule::get_nonce();
-        let collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
+        let collection_id = <CollectionModule as CollectionInterface<_, _>>::generate_collection_id(nonce).unwrap();
         let mint_amount = 5;
 
         assert_ok!(NFTModule::mint_fungible(
@@ -407,7 +408,7 @@ fn burn_non_fungible_success() {
         CollectionModule::create_collection(alice.clone(), vec![2, 3, 3], false).unwrap();
 
         let nonce = CollectionModule::get_nonce();
-        let collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
+        let collection_id = <CollectionModule as CollectionInterface<_, _>>::generate_collection_id(nonce).unwrap();
         let mint_amount = 5;
         NFTModule::mint_non_fungible(
             alice.clone(),
@@ -452,7 +453,7 @@ fn burn_non_fungible_failed() {
         CollectionModule::create_collection(alice.clone(), vec![2, 3, 3], false).unwrap();
 
         let nonce = CollectionModule::get_nonce();
-        let collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
+        let collection_id = <CollectionModule as CollectionInterface<_, _>>::generate_collection_id(nonce).unwrap();
         let mint_amount = 5;
         NFTModule::mint_non_fungible(
             alice.clone(),
@@ -511,7 +512,7 @@ fn burn_fungible_success() {
         CollectionModule::create_collection(alice.clone(), vec![2, 3, 3], true).unwrap();
 
         let nonce = CollectionModule::get_nonce();
-        let collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
+        let collection_id = <CollectionModule as CollectionInterface<_, _>>::generate_collection_id(nonce).unwrap();
         let mint_amount = 5;
         NFTModule::mint_fungible(alice.clone(), alice_address, collection_id, mint_amount).unwrap();
 
@@ -546,7 +547,7 @@ fn burn_fungible_failed() {
         CollectionModule::create_collection(alice.clone(), vec![2, 3, 3], true).unwrap();
 
         let nonce = CollectionModule::get_nonce();
-        let collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
+        let collection_id = <CollectionModule as CollectionInterface<_, _>>::generate_collection_id(nonce).unwrap();
         let mint_amount = 5;
         NFTModule::mint_fungible(alice.clone(), alice_address, collection_id, mint_amount).unwrap();
         let not_available_collection_id =

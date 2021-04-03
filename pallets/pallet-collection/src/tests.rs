@@ -1,5 +1,7 @@
 use crate::{mock::*};
 use frame_support::assert_ok;
+use crate::CollectionInterface;
+
 
 #[test]
 fn test_create_collection() {
@@ -11,8 +13,8 @@ fn test_create_collection() {
 
         let nonce = TemplateModule::get_nonce();
 		assert_eq!(nonce, 1);
-
-        let collection_id = TemplateModule::generate_collection_id(nonce).unwrap();
+        // <TemplateModule as CollectionInterface<_, _>>::nonce_increment();
+        let collection_id = <TemplateModule as CollectionInterface<_, _>>::generate_collection_id(nonce).unwrap();
         let collection = TemplateModule::collections(collection_id);
         assert_eq!(collection.owner, alice_address);
     });

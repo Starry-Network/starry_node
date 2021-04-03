@@ -1,6 +1,7 @@
 use crate::{mock::*, Error};
 use frame_support::{assert_noop, assert_ok};
 use sp_core::H256;
+use pallet_collection::CollectionInterface;
 
 #[test]
 fn link_non_fungible() {
@@ -14,12 +15,12 @@ fn link_non_fungible() {
         CollectionModule::create_collection(alice.clone(), vec![2, 3, 3], false).unwrap();
 
         let nonce = CollectionModule::get_nonce();
-        let child_collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
+        let child_collection_id = <CollectionModule as CollectionInterface<_, _>>::generate_collection_id(nonce).unwrap();
 
         CollectionModule::create_collection(alice.clone(), vec![2, 3, 3], false).unwrap();
 
         let nonce = CollectionModule::get_nonce();
-        let parent_collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
+        let parent_collection_id = <CollectionModule as CollectionInterface<_, _>>::generate_collection_id(nonce).unwrap();
 
         assert_ok!(NFTModule::mint_non_fungible(
             alice.clone(),
@@ -140,17 +141,17 @@ fn link_fungible() {
         CollectionModule::create_collection(alice.clone(), vec![2, 3, 3], true).unwrap();
 
         let nonce = CollectionModule::get_nonce();
-        let fungible_collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
+        let fungible_collection_id = <CollectionModule as CollectionInterface<_, _>>::generate_collection_id(nonce).unwrap();
 
         CollectionModule::create_collection(alice.clone(), vec![2, 3, 3], false).unwrap();
 
         let nonce = CollectionModule::get_nonce();
-        let child_collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
+        let child_collection_id = <CollectionModule as CollectionInterface<_, _>>::generate_collection_id(nonce).unwrap();
 
         CollectionModule::create_collection(alice.clone(), vec![2, 3, 3], false).unwrap();
 
         let nonce = CollectionModule::get_nonce();
-        let parent_collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
+        let parent_collection_id = <CollectionModule as CollectionInterface<_, _>>::generate_collection_id(nonce).unwrap();
 
         assert_ok!(NFTModule::mint_fungible(
             alice.clone(),
@@ -236,12 +237,12 @@ fn recover() {
         CollectionModule::create_collection(alice.clone(), vec![2, 3, 3], false).unwrap();
 
         let nonce = CollectionModule::get_nonce();
-        let child_collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
+        let child_collection_id = <CollectionModule as CollectionInterface<_, _>>::generate_collection_id(nonce).unwrap();
 
         CollectionModule::create_collection(alice.clone(), vec![2, 3, 3], false).unwrap();
 
         let nonce = CollectionModule::get_nonce();
-        let parent_collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
+        let parent_collection_id = <CollectionModule as CollectionInterface<_, _>>::generate_collection_id(nonce).unwrap();
 
         assert_ok!(NFTModule::mint_non_fungible(
             alice.clone(),
@@ -299,17 +300,17 @@ fn recover_fungible() {
         CollectionModule::create_collection(alice.clone(), vec![2, 3, 3], true).unwrap();
 
         let nonce = CollectionModule::get_nonce();
-        let fungible_collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
+        let fungible_collection_id = <CollectionModule as CollectionInterface<_, _>>::generate_collection_id(nonce).unwrap();
 
         CollectionModule::create_collection(alice.clone(), vec![2, 3, 3], false).unwrap();
 
         let nonce = CollectionModule::get_nonce();
-        let child_collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
+        let child_collection_id = <CollectionModule as CollectionInterface<_, _>>::generate_collection_id(nonce).unwrap();
 
         CollectionModule::create_collection(alice.clone(), vec![2, 3, 3], false).unwrap();
 
         let nonce = CollectionModule::get_nonce();
-        let parent_collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
+        let parent_collection_id = <CollectionModule as CollectionInterface<_, _>>::generate_collection_id(nonce).unwrap();
 
         assert_ok!(NFTModule::mint_fungible(
             alice.clone(),

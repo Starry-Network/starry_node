@@ -8,8 +8,8 @@ use frame_support::{
 use frame_system::ensure_signed;
 use sp_runtime::{traits::AccountIdConversion, ModuleId};
 
-use pallet_collection;
-use pallet_nft;
+use pallet_collection::CollectionInterface;
+use pallet_nft::NFTInterface;
 
 #[cfg(test)]
 mod mock;
@@ -19,8 +19,11 @@ mod tests;
 
 const PALLET_ID: ModuleId = ModuleId(*b"GraphNFT");
 
-pub trait Config: frame_system::Config + pallet_collection::Config + pallet_nft::Config {
+// pub trait Config: frame_system::Config + pallet_collection::Config + pallet_nft::Config {
+pub trait Config: frame_system::Config {
     type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
+    type Collection: CollectionInterface<Self::Hash, Self::AccountId>;
+    type NFT: NFTInterface<Self::Hash, Self::AccountId>;
 }
 // ToDo: 1. repalce ParentToChild to many to many 2. when link to other nft, rember remove it from parent to child
 decl_storage! {
@@ -82,16 +85,16 @@ decl_module! {
         #[weight = 10_000]
         pub fn link_non_fungible(origin, child_collection_id: T::Hash, child_token_id: u128, parent_collection_id: T::Hash, parent_token_id: u128) -> DispatchResult {
             ensure!(
-                <pallet_collection::Collections<T>>::contains_key(parent_collection_id),
+                T::Collection::collection_exist(parent_collection_id),
                 Error::<T>::ParentCollectionNotFound
             );
             ensure!(
-                <pallet_nft::Tokens<T>>::contains_key(parent_collection_id, parent_token_id),
+                T::NFT::token_exist(parent_collection_id, parent_token_id),
                 Error::<T>::TokenNotFound
             );
 
 
-            let who = ensure_signed(origin.clone())?;
+            let who = ensure_signed(origin)?;
             let have_parent = ChildToParent::<T>::contains_key((child_collection_id, child_token_id));
 
             if have_parent {
@@ -100,11 +103,11 @@ decl_module! {
                 ensure!(&root_token_owner == &who, Error::<T>::PermissionDenied);
             } else {
                 // token's owner should be user
-                <pallet_nft::Module<T>>::transfer_non_fungible(origin, Self::account_id(), child_collection_id, child_token_id, 1)?;
+                T::NFT::_transfer_non_fungible(who.clone(), Self::account_id(), child_collection_id, child_token_id, 1)?;
             }
 
             // if parent token's owner is user, it can be a root token, so don't check
-            let parent_token = <pallet_nft::Module<T>>::tokens(parent_collection_id, parent_token_id);
+            let parent_token = T::NFT::get_nft_token(parent_collection_id, parent_token_id);
 
             if parent_token.owner == Self::account_id() {
                 let child_is_parent_ancestor = Self::is_ancestor((child_collection_id, child_token_id), (parent_collection_id, parent_token_id))?;
@@ -138,14 +141,14 @@ decl_module! {
         // pub fn link_fungible(origin, child_token: Option<(T::Hash,u128)>, fungible_collection_id: T::Hash, parent_collection_id: T::Hash, parent_token_id: u128, amount: u128) -> DispatchResult {
         pub fn link_fungible(origin, child_collection_id: Option<T::Hash>, child_token_id: Option<u128>, fungible_collection_id: T::Hash, parent_collection_id: T::Hash, parent_token_id: u128, amount: u128) -> DispatchResult {
 
-            let who = ensure_signed(origin.clone())?;
+            let who = ensure_signed(origin)?;
 
             ensure!(
-                <pallet_collection::Collections<T>>::contains_key(parent_collection_id),
+               T::Collection::collection_exist(parent_collection_id),
                 Error::<T>::ParentCollectionNotFound
             );
             ensure!(
-                <pallet_nft::Tokens<T>>::contains_key(parent_collection_id, parent_token_id),
+                T::NFT::token_exist(parent_collection_id, parent_token_id),
                 Error::<T>::TokenNotFound
             );
 
@@ -154,7 +157,8 @@ decl_module! {
             let parent_balance = Self::parent_balance((parent_collection_id, parent_token_id), fungible_collection_id).checked_add(amount).ok_or(Error::<T>::NumOverflow)?;
 
             if transfer_from_user {
-                <pallet_nft::Module<T>>::transfer_fungible(origin, Self::account_id(), fungible_collection_id, amount)?;
+                // <pallet_nft::Module<T>>::transfer_fungible(origin, Self::account_id(), fungible_collection_id, amount)?;
+                T::NFT::_transfer_fungible(who.clone(), Self::account_id(), fungible_collection_id, amount)?;
                 ParentBalance::<T>::insert((parent_collection_id, parent_token_id), fungible_collection_id, parent_balance);
 
                 Self::deposit_event(RawEvent::FungibleTokenLinkedByUser(who,fungible_collection_id,parent_collection_id,parent_token_id,amount));
@@ -193,7 +197,7 @@ decl_module! {
 
         #[weight = 10_000]
         pub fn recover_non_fungible(origin, collection_id: T::Hash, token_id: u128) -> DispatchResult {
-            let who = ensure_signed(origin.clone())?;
+            let who = ensure_signed(origin)?;
 
             ensure!(
                 ChildToParent::<T>::contains_key((collection_id, token_id)),
@@ -211,7 +215,8 @@ decl_module! {
 
             ensure!(&root_token_owner == &who, Error::<T>::PermissionDenied);
 
-            <pallet_nft::Module<T>>::transfer_non_fungible(frame_system::RawOrigin::Signed(Self::account_id()).into(), who.clone(), collection_id, token_id, 1)?;
+            // <pallet_nft::Module<T>>::transfer_non_fungible(frame_system::RawOrigin::Signed(Self::account_id()).into(), who.clone(), collection_id, token_id, 1)?;
+            T::NFT::_transfer_non_fungible(Self::account_id(), who.clone(), collection_id, token_id, 1)?;
 
             ChildToParent::<T>::remove((collection_id, token_id));
 
@@ -222,7 +227,7 @@ decl_module! {
 
         #[weight = 10_000]
         pub fn recover_fungible(origin, child_collection_id: T::Hash, child_token_id: u128, fungible_collection_id: T::Hash, amount: u128) -> DispatchResult {
-            let who = ensure_signed(origin.clone())?;
+            let who = ensure_signed(origin)?;
 
             let child_balance = Self::parent_balance((child_collection_id, child_token_id), fungible_collection_id);
             ensure!(child_balance >= amount, Error::<T>::AmountTooLarge);
@@ -232,7 +237,8 @@ decl_module! {
 
             let child_balance = child_balance.checked_sub(amount).ok_or(Error::<T>::NumOverflow)?;
 
-            <pallet_nft::Module<T>>::transfer_fungible(frame_system::RawOrigin::Signed(Self::account_id()).into(), who.clone(), fungible_collection_id, amount)?;
+            // <pallet_nft::Module<T>>::transfer_fungible(frame_system::RawOrigin::Signed(Self::account_id()).into(), who.clone(), fungible_collection_id, amount)?;
+            T::NFT::_transfer_fungible(Self::account_id(), who.clone(), fungible_collection_id, amount)?;
             ParentBalance::<T>::insert((child_collection_id, child_token_id), fungible_collection_id, child_balance);
 
             if child_balance == 0 {
@@ -257,14 +263,14 @@ impl<T: Config> Module<T> {
     ) -> Result<T::AccountId, DispatchError> {
         // root token: owner isn't equal with pallet account
         // if can't find parent token in pallet_nft, it may be burned.
-        let token = <pallet_nft::Module<T>>::tokens(child_collection_id, child_token_id);
+        let token = T::NFT::get_nft_token(child_collection_id, child_token_id);
         if token.owner != Self::account_id() {
             Ok(token.owner)
         } else {
             let (parent_collection_id, parent_token_id) =
                 Self::child_to_parent((child_collection_id, child_token_id));
             ensure!(
-                <pallet_nft::Tokens<T>>::contains_key(parent_collection_id, parent_token_id),
+                T::NFT::token_exist(parent_collection_id, parent_token_id),
                 Error::<T>::RootTokenNotFound
             );
             Self::find_root_owner(parent_collection_id, parent_token_id)
@@ -288,7 +294,7 @@ impl<T: Config> Module<T> {
 
             // if parent token not in pallet_nft, it may be burned.
             ensure!(
-                <pallet_nft::Tokens<T>>::contains_key(parent_collection_id, parent_token_id),
+                T::NFT::token_exist(parent_collection_id, parent_token_id),
                 Error::<T>::RootTokenNotFound
             );
 

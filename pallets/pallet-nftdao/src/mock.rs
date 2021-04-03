@@ -1,6 +1,9 @@
 use crate as pallet_dao;
 use sp_core::H256;
 use frame_support::parameter_types;
+use frame_support::{
+	traits::TestRandomness,
+};
 use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup}, testing::Header,
 };
@@ -17,12 +20,14 @@ frame_support::construct_runtime!(
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
 		System: frame_system::{Module, Call, Config, Storage, Event<T>},
-		DaoModule: pallet_dao::{Module, Call, Storage, Event<T>},
 		Template: pallet_template::{Module, Call, Storage, Event<T>},
-		// Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
+		CollectionModule: pallet_collection::{Module, Call, Storage, Event<T>},
+		NFTModule: pallet_nft::{Module, Call, Storage, Event<T>},
+		DaoModule: pallet_dao::{Module, Call, Storage, Event<T>},
+		Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
 	}
 );
-
+ 
 parameter_types! {
 	pub const BlockHashCount: u64 = 250;
 	pub const SS58Prefix: u8 = 42;
@@ -46,38 +51,48 @@ impl system::Config for Test {
 	type BlockHashCount = BlockHashCount;
 	type Version = ();
 	type PalletInfo = PalletInfo;
-	type AccountData = ();
-	// type AccountData = pallet_balances::AccountData<u64>;
+	type AccountData = pallet_balances::AccountData<u64>;
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
 	type SystemWeightInfo = ();
 	type SS58Prefix = SS58Prefix;
 }
 
-impl pallet_dao::Config for Test {
-	type Event = Event;
-	type Action = Call;
-}
-
 impl pallet_template::Config for Test {
 	type Event = Event;
 }
 
-// parameter_types! {
-// 	pub const ExistentialDeposit: u64 = 1;
-// }
+parameter_types! {
+	pub const ExistentialDeposit: u64 = 1;
+}
 
-// impl pallet_balances::Config for Test {
-// 	type MaxLocks = ();
-// 	type Balance = u64;
-// 	type Event = Event;
-// 	type DustRemoval = ();
-// 	type ExistentialDeposit = ExistentialDeposit;
-// 	type AccountStore = System;
-// 	type WeightInfo = ();
-// }
+impl pallet_balances::Config for Test {
+	type MaxLocks = ();
+	type Balance = u64;
+	type Event = Event;
+	type DustRemoval = ();
+	type ExistentialDeposit = ExistentialDeposit;
+	type AccountStore = System;
+	type WeightInfo = ();
+}
 
+impl pallet_collection::Config for Test {
+	type Event = Event;
+	type RandomnessSource = TestRandomness;
+}
 
+impl pallet_nft::Config for Test {
+	type Event = Event;
+	type Collection = CollectionModule;
+}
+
+impl pallet_dao::Config for Test {
+	type Event = Event;
+	type Action = Call;
+	type RandomnessSource = TestRandomness;
+	type Currency = Balances;
+	type NFT = NFTModule;
+}
 
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {

@@ -1,6 +1,8 @@
 use crate::{mock::*, Error};
 use frame_support::{assert_noop, assert_ok};
 use pallet_nft;
+use pallet_collection::CollectionInterface;
+
 use sp_core::H256;
 
 #[test]
@@ -23,7 +25,7 @@ fn create_success() {
         CollectionModule::create_collection(alice.clone(), vec![2, 3, 3], false).unwrap();
 
         let nonce = CollectionModule::get_nonce();
-        let collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
+        let collection_id = <CollectionModule as CollectionInterface<_, _>>::generate_collection_id(nonce).unwrap();
         let mint_amount = 10;
         NFTModule::mint_non_fungible(
             alice.clone(),
@@ -43,7 +45,7 @@ fn create_success() {
         assert_eq!(token.owner, SubModule::account_id());
 
         let nonce = CollectionModule::get_nonce();
-        let collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
+        let collection_id = <CollectionModule as CollectionInterface<_, _>>::generate_collection_id(nonce).unwrap();
         let collection = CollectionModule::collections(collection_id);
 
         assert_eq!(collection.owner, SubModule::account_id());
@@ -99,7 +101,7 @@ fn recover_success() {
         CollectionModule::create_collection(alice.clone(), vec![2, 3, 3], false).unwrap();
 
         let nonce = CollectionModule::get_nonce();
-        let collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
+        let collection_id = <CollectionModule as CollectionInterface<_, _>>::generate_collection_id(nonce).unwrap();
         let mint_amount = 10;
         NFTModule::mint_non_fungible(
             alice.clone(),
@@ -145,7 +147,7 @@ fn recover_failed() {
         CollectionModule::create_collection(alice.clone(), vec![2, 3, 3], false).unwrap();
 
         let nonce = CollectionModule::get_nonce();
-        let collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
+        let collection_id = <CollectionModule as CollectionInterface<_, _>>::generate_collection_id(nonce).unwrap();
         let mint_amount = 10;
         NFTModule::mint_non_fungible(
             alice.clone(),
@@ -218,7 +220,7 @@ fn mint_non_fungible_success() {
         CollectionModule::create_collection(alice.clone(), vec![2, 3, 3], false).unwrap();
 
         let nonce = CollectionModule::get_nonce();
-        let collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
+        let collection_id = <CollectionModule as CollectionInterface<_, _>>::generate_collection_id(nonce).unwrap();
         let mint_amount = 10;
         NFTModule::mint_non_fungible(
             alice.clone(),
@@ -280,7 +282,7 @@ fn mint_non_fungible_failed() {
         CollectionModule::create_collection(alice.clone(), vec![2, 3, 3], false).unwrap();
 
         let nonce = CollectionModule::get_nonce();
-        let collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
+        let collection_id = <CollectionModule as CollectionInterface<_, _>>::generate_collection_id(nonce).unwrap();
         let mint_amount = 10;
         NFTModule::mint_non_fungible(
             alice.clone(),
@@ -350,7 +352,7 @@ fn mint_fungible_success() {
         CollectionModule::create_collection(alice.clone(), vec![2, 3, 3], false).unwrap();
 
         let nonce = CollectionModule::get_nonce();
-        let collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
+        let collection_id = <CollectionModule as CollectionInterface<_, _>>::generate_collection_id(nonce).unwrap();
         let mint_amount = 10;
         NFTModule::mint_non_fungible(
             alice.clone(),
@@ -399,7 +401,7 @@ fn mint_fungible_failed() {
         CollectionModule::create_collection(alice.clone(), vec![2, 3, 3], false).unwrap();
 
         let nonce = CollectionModule::get_nonce();
-        let collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
+        let collection_id = <CollectionModule as CollectionInterface<_, _>>::generate_collection_id(nonce).unwrap();
         let mint_amount = 10;
         NFTModule::mint_non_fungible(
             alice.clone(),

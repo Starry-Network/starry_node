@@ -57,8 +57,8 @@ impl system::Config for Test {
 
 impl pallet_nft::Config for Test {
 	type Event = Event;
+	type Collection = CollectionModule;
 }
-
 
 impl pallet_collection::Config for Test {
 	type Event = Event;
@@ -69,21 +69,3 @@ impl pallet_collection::Config for Test {
 pub fn new_test_ext() -> sp_io::TestExternalities {
 	system::GenesisConfig::default().build_storage::<Test>().unwrap().into()
 }
-
-
-// pub struct TestRandomness<T>(sp_std::marker::PhantomData<T>);
-
-// impl<Output: codec::Decode + Default, T> frame_support::traits::Randomness<Output>
-// 	for TestRandomness<T>
-// where
-// 	T: frame_system::Config,
-// {
-// 	fn random(subject: &[u8]) -> (Output) {
-// 		use sp_runtime::traits::TrailingZeroInput;
-
-// 		(
-// 			Output::decode(&mut TrailingZeroInput::new(subject)).unwrap_or_default(),
-// 			frame_system::Pallet::<T>::block_number(),
-// 		)
-// 	}
-// }
