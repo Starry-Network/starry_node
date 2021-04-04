@@ -136,9 +136,9 @@ decl_storage! {
         // (dao account, proposal id) => proposal
         pub Proposals get(fn proposal): double_map hasher(blake2_128_concat) T::AccountId, hasher(blake2_128_concat) u128 => Option<Proposal<T::AccountId, BalanceOf<T>, T::Hash, T::BlockNumber>>;
         //  dao account => proposal in queue index
-        pub LastQueueIndex get(fn last_queue_index): map hasher(blake2_128_concat)  T::AccountId => Option<u128>;
-        // (dao account, proposal queue index) => proposal id
-        pub ProposalQueues get(fn proposal_queue): double_map hasher(blake2_128_concat) T::AccountId, hasher(blake2_128_concat) u128 => u128;
+        // pub LastQueueIndex get(fn last_queue_index): map hasher(blake2_128_concat)  T::AccountId => Option<u128>;
+        // (dao account, proposal id) => ()
+        pub ProposalQueues get(fn proposal_queue): double_map hasher(blake2_128_concat) T::AccountId, hasher(blake2_128_concat) u128 => ();
 
     }
 }
@@ -326,7 +326,7 @@ decl_module! {
                     Some(_status) => Err(Error::<T>::CanNotSponsorProposal)?,
                 }
 
-                let queue_index = Self::queue_index_increment(&dao_account)?;
+                // let queue_index = Self::queue_index_increment(&dao_account)?;
 
                 let proposal = Proposal {
                     sponsor: Some(who.clone()),
@@ -339,8 +339,8 @@ decl_module! {
 
                 Proposals::<T>::insert(&dao_account, &proposal_id, proposal);
                 // UserCurrencyBalance::<T>::insert(&dao_account, &escrow_id, dao.proposal_deposit);
-                ProposalQueues::<T>::insert(&dao_account, &queue_index, &proposal_id);
-                LastQueueIndex::<T>::insert(&dao_account, &queue_index);
+                ProposalQueues::<T>::insert(&dao_account, &proposal_id, ());
+                // LastQueueIndex::<T>::insert(&dao_account, &queue_index);
             } else {
                 Err(Error::<T>::ProposalNotFound)?
             }
@@ -349,7 +349,7 @@ decl_module! {
         }
 
         #[weight = 10_000]
-        pub fn vote_proposal(origin, dao_account: T::AccountId, proposal_id: u128) -> DispatchResult {
+        pub fn vote_proposal(origin, dao_account: T::AccountId, proposal_index: u128) -> DispatchResult {
             let who = ensure_signed(origin)?;
             Ok(())
         }
@@ -412,14 +412,14 @@ impl<T: Config> Module<T> {
         }
     }
 
-    pub fn queue_index_increment(dao_account: &T::AccountId) -> Result<u128, DispatchError> {
-        if let Some(queue_index) = Self::last_queue_index(dao_account) {
-            let queue_index = queue_index.checked_add(1).ok_or(Error::<T>::NumOverflow)?;
-            Ok(queue_index)
-        } else {
-            Ok(0)
-        }
-    }
+    // pub fn queue_index_increment(dao_account: &T::AccountId) -> Result<u128, DispatchError> {
+    //     if let Some(queue_index) = Self::last_queue_index(dao_account) {
+    //         let queue_index = queue_index.checked_add(1).ok_or(Error::<T>::NumOverflow)?;
+    //         Ok(queue_index)
+    //     } else {
+    //         Ok(0)
+    //     }
+    // }
 
     pub fn run(data: Vec<u8>) -> Result<bool, DispatchError> {
         if let Ok(action) = T::Action::decode(&mut &data[..]) {
