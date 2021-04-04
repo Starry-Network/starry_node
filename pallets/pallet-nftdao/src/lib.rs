@@ -1,3 +1,10 @@
+// submit a proposal
+// dao members can sponsor submited proposal, then the proposal will in quee
+// vote, after vote period, members can's vote
+// note: in vote period,can set member a "highestIndexYesVote", then they cannot ragequit until highest index proposal member voted YES on is processed
+// grace, in this period member's who vote No can rageguit dao
+// processing:  DAO protects members from extreme dilution: if the combo of a proposal and related Ragequitting would result in any one member suffering dilution of greater than 3x (dilution_bound), the proposal automatically fails.
+// complete
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::{Decode, Encode};
@@ -5,9 +12,7 @@ use frame_support::traits::{
     Currency,
     ExistenceRequirement::{AllowDeath, KeepAlive},
 };
-/// Edit this file to define custom logic or remove it if it is not needed.
-/// Learn more about FRAME and the core library of Substrate FRAME pallets:
-/// https://substrate.dev/docs/en/knowledgebase/runtime/frame
+
 use frame_support::{
     decl_error, decl_event, decl_module, decl_storage,
     dispatch::{DispatchError, DispatchResult},
@@ -29,6 +34,7 @@ use sp_std::{convert::TryInto, vec::Vec};
 use sp_core::TypeId;
 
 use pallet_nft::NFTInterface;
+use pallet_nft::TokenInfo;
 
 #[cfg(test)]
 mod mock;
@@ -49,7 +55,7 @@ impl TypeId for DAOId {
 }
 
 #[derive(Encode, Decode, Default, Clone, PartialEq)]
-pub struct DAOInfo<AccountId, BlockNumber, BalanceOf> {
+pub struct DAOInfo<AccountId, BlockNumber, Balance> {
     pub account_id: AccountId,
     pub escrow_id: AccountId,
     pub name: Vec<u8>,
@@ -59,8 +65,8 @@ pub struct DAOInfo<AccountId, BlockNumber, BalanceOf> {
     pub total_shares: u128,
     pub summoning_time: BlockNumber,
     pub dilution_bound: u128, // maximum multiplier a YES voter will be obligated to pay in case of mass ragequit (default = 3)
-    pub proposal_deposit: BalanceOf,
-    pub processing_reward: BalanceOf,
+    pub proposal_deposit: Balance,
+    pub processing_reward: Balance,
 }
 
 #[derive(Encode, Decode, Default, Clone, PartialEq)]
@@ -78,15 +84,15 @@ pub enum ProposalStatus {
 }
 
 #[derive(Encode, Decode, Default, Clone, PartialEq)]
-struct Proposal<AccountId, BalanceOf, Hash, BlockNumber> {
+pub struct Proposal<AccountId, Balance, Hash, BlockNumber> {
     pub applicant: AccountId,
     pub proposer: AccountId,
     pub sponsor: Option<AccountId>,
     pub shares_requested: u128,
-    pub tribute_offered: BalanceOf,
+    pub tribute_offered: Balance,
     pub tribute_nft: Option<(Hash, u128)>,
-    pub tribute_nft_offered: u128,
     pub starting_period: BlockNumber,
+    // aye, nay
     pub yes_votes: u128,
     pub no_votes: u128,
     pub details: Vec<u8>,
@@ -112,63 +118,59 @@ pub trait Config: frame_system::Config {
     type NFT: NFTInterface<Self::Hash, Self::AccountId>;
 }
 
-// The pallet's runtime storage items.
-// https://substrate.dev/docs/en/knowledgebase/runtime/storage
 decl_storage! {
-    // A unique name is used to ensure that the pallet's storage items are isolated.
-    // This name may be updated, but each pallet in the runtime must use a unique name.
-    // ---------------------------------vvvvvvvvvvvvvv
     trait Store for Module<T: Config> as NFTDAOModule {
-        // Learn more about declaring storage items:
-        // https://substrate.dev/docs/en/knowledgebase/runtime/storage#declaring-storage-items
-        Something get(fn something): Option<u32>;
         Nonce get(fn get_nonce): u128;
         // dao account => dao info
-        pub DAOs get(fn get_dao): map hasher(blake2_128_concat)  T::AccountId => DAOInfo<T::AccountId, T::BlockNumber, BalanceOf<T>>;
+        pub DAOs get(fn dao): map hasher(blake2_128_concat)  T::AccountId => DAOInfo<T::AccountId, T::BlockNumber, BalanceOf<T>>;
         // (dao account, member account) => member
-        pub Members get(fn get_member): double_map hasher(blake2_128_concat) T::AccountId, hasher(blake2_128_concat) T::AccountId => Member;
+        pub Members get(fn member): double_map hasher(blake2_128_concat) T::AccountId, hasher(blake2_128_concat) T::AccountId => Member;
         // dao account => dao escrows account
-        pub Escrows get(fn get_escrow): map hasher(blake2_128_concat)  T::AccountId => T::AccountId;
+        pub Escrows get(fn escrow): map hasher(blake2_128_concat)  T::AccountId => T::AccountId;
+        // user currency balance: dao account , user account => balance
+        // pub UserCurrencyBalance get(fn user_currency_balance): double_map hasher(blake2_128_concat) T::AccountId, hasher(blake2_128_concat) T::AccountId => BalanceOf<T>;
+        // user nft: (dao account, user account), collection  => (token id)
+        // pub UserNFT get(fn user_nft): double_map hasher(blake2_128_concat) (T::AccountId, T::AccountId), hasher(blake2_128_concat) (T::Hash, u128)=> ();
         // dao account => proposal id
         pub LastProposalId get(fn last_proposal_id): map hasher(blake2_128_concat) T::AccountId  => Option<u128>;
         // (dao account, proposal id) => proposal
-        // pub Proposals get(fn get_proposal): double_map hasher(blake2_128_concat) T::AccountId, hasher(blake2_128_concat) u128 => Proposal<T::AccountId, BalanceOf<T>, T::Hash, T::BlockNumber>;
+        pub Proposals get(fn proposal): double_map hasher(blake2_128_concat) T::AccountId, hasher(blake2_128_concat) u128 => Option<Proposal<T::AccountId, BalanceOf<T>, T::Hash, T::BlockNumber>>;
+        //  dao account => proposal in queue index
+        pub LastQueueIndex get(fn last_queue_index): map hasher(blake2_128_concat)  T::AccountId => Option<u128>;
+        // (dao account, proposal queue index) => proposal id
+        pub ProposalQueues get(fn proposal_queue): double_map hasher(blake2_128_concat) T::AccountId, hasher(blake2_128_concat) u128 => u128;
+
     }
 }
 
-// Pallets use events to inform users when important changes are made.
-// https://substrate.dev/docs/en/knowledgebase/runtime/events
 decl_event!(
     pub enum Event<T>
     where
         AccountId = <T as frame_system::Config>::AccountId,
     {
-        /// Event documentation should end with an array that provides descriptive names for event
-        /// parameters. [something, who]
-        SomethingStored(u32, AccountId),
         // summoner_account, dao_account
         DAOCreated(AccountId, AccountId),
     }
 );
 
-// Errors inform users that something went wrong.
 decl_error! {
     pub enum Error for Module<T: Config> {
-        /// Error names should be descriptive.
-        NoneValue,
-        /// Errors should have helpful documentation associated with them.
-        StorageOverflow,
+        PermissionDenied,
         DecodeFailed,
         NumOverflow,
         ConvertFailed,
         DAONotFound,
         NFTIsEmpty,
+        DepositSmallerThanReward,
+        ValueShouldLargeThanZero,
+        NotDAOMember,
+        ProposalNotFound,
+        InsufficientBalances,
+        SponsoredProposal,
+        CancelledProposal
     }
 }
 
-// Dispatchable functions allows users to interact with the pallet and invoke state changes.
-// These functions materialize as "extrinsics", which are often compared to transactions.
-// Dispatchable functions must be annotated with a weight and must return a DispatchResult.
 decl_module! {
     pub struct Module<T: Config> for enum Call where origin: T::Origin {
         // Errors must be initialized if they are used by the pallet.
@@ -177,34 +179,14 @@ decl_module! {
         // Events must be initialized if they are used by the pallet.
         fn deposit_event() = default;
 
-        /// An example dispatchable that takes a singles value as a parameter, writes the value to
-        /// storage and emits an event. This function must be dispatched by a signed extrinsic.
-        #[weight = 10_000 + T::DbWeight::get().writes(1)]
-        pub fn do_something(origin, something: u32) -> DispatchResult {
-            // Check that the extrinsic was signed and get the signer.
-            // This function will return an error if the extrinsic is not signed.
-            // https://substrate.dev/docs/en/knowledgebase/runtime/origin
-            let who = ensure_signed(origin)?;
-
-            // Update storage.
-            Something::put(something);
-
-            // Emit an event.
-            Self::deposit_event(RawEvent::SomethingStored(something, who));
-            // Return a successful DispatchResult
-            Ok(())
-        }
-
-        // submit a proposal
-        // dao members can sponsor submited proposal, then the proposal will in quee
-        // vote, after vote period, members can's vote
-        // note: in vote period,can set member a "highestIndexYesVote", then they cannot ragequit until highest index proposal member voted YES on is processed
-        // grace, in this period member's who vote No can rageguit dao
-        // processing:  DAO protects members from extreme dilution: if the combo of a proposal and related Ragequitting would result in any one member suffering dilution of greater than 3x (dilution_bound), the proposal automatically fails.
-        // complete
         #[weight = 10_000 ]
         pub fn create_dao(origin, name: Vec<u8>, vote_period: T::BlockNumber, grace_period: T::BlockNumber, metadata: Vec<u8>, shares_requested: u128, proposal_deposit: BalanceOf<T>, processing_reward: BalanceOf<T>, dilution_bound: u128 ) -> DispatchResult {
             let who = ensure_signed(origin)?;
+
+            ensure!(proposal_deposit >= processing_reward, Error::<T>::DepositSmallerThanReward);
+            ensure!(vote_period > Zero::zero(), Error::<T>::ValueShouldLargeThanZero);
+            ensure!(grace_period > Zero::zero(), Error::<T>::ValueShouldLargeThanZero);
+            ensure!(dilution_bound > Zero::zero(), Error::<T>::ValueShouldLargeThanZero);
 
             let dao_id = Self::dao_id(&who, &name)?;
             let dao_account = Self::dao_account_id(&dao_id);
@@ -241,7 +223,7 @@ decl_module! {
         }
 
         #[weight = 10_000]
-        pub fn submit_proposal(origin, dao_account: T::AccountId, applicant: T::AccountId, shares_requested: u128, tribute_offered: BalanceOf<T>, tribute_nft: Option<(T::Hash, u128)>, tribute_nft_offered: u128, details: Vec<u8>) -> DispatchResult {
+        pub fn submit_proposal(origin, dao_account: T::AccountId, applicant: T::AccountId, shares_requested: u128, tribute_offered: BalanceOf<T>, tribute_nft: Option<(T::Hash, u128)>,  details: Vec<u8>) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
             ensure!(
@@ -249,7 +231,9 @@ decl_module! {
                 Error::<T>::DAONotFound
             );
 
-            let escrow_id = Self::get_escrow(&dao_account);
+            let escrow_id = Self::escrow(&dao_account);
+
+            let starting_period: T::BlockNumber = Zero::zero();
 
             let proposal = Proposal {
                 applicant,
@@ -258,35 +242,104 @@ decl_module! {
                 shares_requested,
                 tribute_offered,
                 tribute_nft,
-                tribute_nft_offered,
-                starting_period: 0,
+                starting_period,
                 yes_votes:0,
                 no_votes:0,
                 details,
                 status: None::<ProposalStatus>
             };
 
-
-            let transfer_balance = tribute_offered == Zero::zero();
-            let transfer_nft = tribute_nft_offered == Zero::zero();
-
-            if !transfer_nft {
-                if let Some((collection_id, token_id)) = tribute_nft {
-                    T::NFT::_transfer_non_fungible(who.clone(), escrow_id.clone(), collection_id, token_id, tribute_nft_offered)?;
-                } else {
-                    Err(Error::<T>::NFTIsEmpty)?
-                }
+            if let Some((collection_id, token_id)) = tribute_nft {
+                T::NFT::_transfer_non_fungible(who.clone(), escrow_id.clone(), collection_id, token_id, 1)?;
+                // UserNFT::<T>::insert((&dao_account, &escrow_id), (collection_id, token_id), ());
             }
 
-            if !transfer_balance {
+            if !(tribute_offered == Zero::zero()) {
                 T::Currency::transfer(&who, &escrow_id, tribute_offered, AllowDeath)?;
+                // UserCurrencyBalance::<T>::insert(&dao_account, &escrow_id, tribute_offered);
             }
 
-            let proposal_id = Self::proposal_increment(&dao_account)?;
+            let proposal_id = Self::proposal_id_increment(&dao_account)?;
+
+            LastProposalId::<T>::insert(&dao_account, &proposal_id);
+            Proposals::<T>::insert(&dao_account, &proposal_id, proposal);
 
             Ok(())
         }
 
+        #[weight = 10_000]
+        pub fn cancel_proposal(origin, dao_account: T::AccountId, proposal_id: u128) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+
+            ensure!(DAOs::<T>::contains_key(&dao_account), Error::<T>::DAONotFound);
+
+            if let Some(proposal) = Self::proposal(&dao_account, proposal_id) {
+                ensure!(&who == &proposal.proposer, Error::<T>::PermissionDenied);
+
+                if let Some(status) = &proposal.status {
+                    ensure!(status != &ProposalStatus::Sponsored, Error::<T>::SponsoredProposal);
+                    ensure!(status != &ProposalStatus::Cancelled, Error::<T>::CancelledProposal);
+                }
+
+                let proposal = Proposal{
+                    status: Some(ProposalStatus::Cancelled),
+                    ..proposal
+                };
+
+                let escrow_id = Self::escrow(&dao_account);
+
+                Proposals::<T>::insert(&dao_account, &proposal_id, &proposal);
+
+                if let Some((collection_id, token_id)) = proposal.clone().tribute_nft {
+                    T::NFT::_transfer_non_fungible(escrow_id.clone(), who.clone(), collection_id, token_id, 1)?;
+                    // UserNFT::<T>::remove((&dao_account, &escrow_id), (collection_id, token_id));
+                }
+
+                if !(&proposal.tribute_offered == &Zero::zero()) {
+                    T::Currency::transfer(&escrow_id, &who, proposal.clone().tribute_offered, AllowDeath)?;
+                }
+
+            } else {
+                Err(Error::<T>::ProposalNotFound)?
+            }
+
+            Ok(())
+
+        }
+
+        #[weight = 10_000]
+        pub fn sponsor_proposal(origin, dao_account: T::AccountId, proposal_id: u128) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+
+            ensure!(DAOs::<T>::contains_key(&dao_account), Error::<T>::DAONotFound);
+            ensure!(Members::<T>::contains_key(&dao_account, &who), Error::<T>::NotDAOMember);
+
+            let dao = Self::dao(&dao_account);
+            let escrow_id = Self::escrow(&dao_account);
+            let block_number = <system::Pallet<T>>::block_number();
+
+            if let Some(proposal) = Self::proposal(&dao_account, proposal_id) {
+                let queue_index = Self::queue_index_increment(&dao_account)?;
+
+                let proposal = Proposal {
+                    sponsor: Some(who.clone()),
+                    status: Some(ProposalStatus::Sponsored),
+                    starting_period: block_number,
+                    ..proposal
+                };
+
+                T::Currency::transfer(&who, &escrow_id, dao.clone().proposal_deposit, AllowDeath)?;
+
+                Proposals::<T>::insert(&dao_account, &proposal_id, proposal);
+                // UserCurrencyBalance::<T>::insert(&dao_account, &escrow_id, dao.proposal_deposit);
+                ProposalQueues::<T>::insert(&dao_account, &queue_index, &proposal_id);
+                LastQueueIndex::<T>::insert(&dao_account, &queue_index);
+            } else {
+                Err(Error::<T>::ProposalNotFound)?
+            }
+
+            Ok(())
+        }
 
     }
 }
@@ -350,10 +403,19 @@ impl<T: Config> Module<T> {
         dao_id.into_sub_account(b"escrow_id")
     }
 
-    pub fn proposal_increment(dao_account: &T::AccountId) -> Result<u128, DispatchError> {
+    pub fn proposal_id_increment(dao_account: &T::AccountId) -> Result<u128, DispatchError> {
         if let Some(proposal_id) = Self::last_proposal_id(dao_account) {
             let proposal_id = proposal_id.checked_add(1).ok_or(Error::<T>::NumOverflow)?;
             Ok(proposal_id)
+        } else {
+            Ok(0)
+        }
+    }
+
+    pub fn queue_index_increment(dao_account: &T::AccountId) -> Result<u128, DispatchError> {
+        if let Some(queue_index) = Self::last_queue_index(dao_account) {
+            let queue_index = queue_index.checked_add(1).ok_or(Error::<T>::NumOverflow)?;
+            Ok(queue_index)
         } else {
             Ok(0)
         }
@@ -373,6 +435,14 @@ impl<T: Config> Module<T> {
     //     let dao_id: DAOId = DAOId(id);
 
     //     Ok(dao_id.into_account())
+    // }
+
+    // pub fn u64_to_balance(input: u64) -> Result<T::BlockNumber, DispatchError> {
+    //     if let Some(blocknumber) = TryInto::<T::BlockNumber>::try_into(input).ok() {
+    //         Ok(blocknumber)
+    //     } else {
+    //         Err(Error::<T>::ConvertFailed)?
+    //     }
     // }
 
     pub fn run(data: Vec<u8>) -> Result<bool, DispatchError> {
