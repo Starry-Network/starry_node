@@ -60,7 +60,7 @@ pub struct DAOInfo<AccountId, BlockNumber, Balance> {
     pub escrow_id: AccountId,
     pub name: Vec<u8>,
     pub period_duration: u128,
-    pub vote_period: u128,
+    pub voting_period: u128,
     pub grace_period: u128,
     pub metadata: Vec<u8>,
     pub total_shares: u128,
@@ -140,6 +140,8 @@ decl_storage! {
         pub LastQueueIndex get(fn last_queue_index): map hasher(blake2_128_concat)  T::AccountId => Option<u128>;
         // (dao account, proposal queue index) => proposal id
         pub ProposalQueues get(fn proposal_queue): double_map hasher(blake2_128_concat) T::AccountId, hasher(blake2_128_concat) u128 => u128;
+        // (dao account, proposal queue index), member account => ()
+        pub VoteMembers get(fn vote_member): double_map hasher(blake2_128_concat) (T::AccountId, u128), hasher(blake2_128_concat) T::AccountId => ();
 
     }
 }
@@ -169,7 +171,9 @@ decl_error! {
         InsufficientBalances,
         SponsoredProposal,
         CancelledProposal,
-        CanNotSponsorProposal
+        CanNotSponsorProposal,
+        ExpiredPeriod,
+        MemberAlreadyVoted,
     }
 }
 
@@ -182,12 +186,12 @@ decl_module! {
         fn deposit_event() = default;
 
         #[weight = 10_000 ]
-        pub fn create_dao(origin, name: Vec<u8>, period_duration: u128, vote_period: u128, grace_period: u128, metadata: Vec<u8>, shares_requested: u128, proposal_deposit: BalanceOf<T>, processing_reward: BalanceOf<T>, dilution_bound: u128 ) -> DispatchResult {
+        pub fn create_dao(origin, name: Vec<u8>, period_duration: u128, voting_period: u128, grace_period: u128, metadata: Vec<u8>, shares_requested: u128, proposal_deposit: BalanceOf<T>, processing_reward: BalanceOf<T>, dilution_bound: u128 ) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
             ensure!(proposal_deposit >= processing_reward, Error::<T>::DepositSmallerThanReward);
             ensure!(period_duration > Zero::zero(), Error::<T>::ValueShouldLargeThanZero);
-            ensure!(vote_period > Zero::zero(), Error::<T>::ValueShouldLargeThanZero);
+            ensure!(voting_period > Zero::zero(), Error::<T>::ValueShouldLargeThanZero);
             ensure!(grace_period > Zero::zero(), Error::<T>::ValueShouldLargeThanZero);
             ensure!(dilution_bound > Zero::zero(), Error::<T>::ValueShouldLargeThanZero);
 
@@ -202,7 +206,7 @@ decl_module! {
                 escrow_id: escrow_id.clone(),
                 name,
                 period_duration,
-                vote_period,
+                voting_period,
                 grace_period,
                 metadata,
                 total_shares: shares_requested,
@@ -269,6 +273,8 @@ decl_module! {
             LastProposalId::<T>::insert(&dao_account, &proposal_id);
             Proposals::<T>::insert(&dao_account, &proposal_id, proposal);
 
+            // emit event
+
             Ok(())
         }
 
@@ -303,6 +309,7 @@ decl_module! {
                 if !(&proposal.tribute_offered == &Zero::zero()) {
                     T::Currency::transfer(&escrow_id, &who, proposal.clone().tribute_offered, AllowDeath)?;
                 }
+                // emit event
 
             } else {
                 Err(Error::<T>::ProposalNotFound)?
@@ -331,7 +338,7 @@ decl_module! {
                 }
 
                 let queue_index = Self::queue_index_increment(&dao_account)?;
-                let starting_period = Self::calculate_starting_period(&dao_account)?;
+                let starting_period = Self::calculate_starting_period(&dao)?;
 
                 let proposal = Proposal {
                     sponsor: Some(who.clone()),
@@ -346,6 +353,9 @@ decl_module! {
                 // UserCurrencyBalance::<T>::insert(&dao_account, &escrow_id, dao.proposal_deposit);
                 ProposalQueues::<T>::insert(&dao_account, &queue_index, &proposal_id);
                 LastQueueIndex::<T>::insert(&dao_account, &queue_index);
+
+                // emit event
+
             } else {
                 Err(Error::<T>::ProposalNotFound)?
             }
@@ -354,8 +364,59 @@ decl_module! {
         }
 
         #[weight = 10_000]
-        pub fn vote_proposal(origin, dao_account: T::AccountId, proposal_id: u128) -> DispatchResult {
+        pub fn vote_proposal(origin, dao_account: T::AccountId, proposal_index: u128, yes: bool) -> DispatchResult {
             let who = ensure_signed(origin)?;
+
+            ensure!(DAOs::<T>::contains_key(&dao_account), Error::<T>::DAONotFound);
+            ensure!(ProposalQueues::<T>::contains_key(&dao_account, &proposal_index), Error::<T>::ProposalNotFound);
+            ensure!(Members::<T>::contains_key(&dao_account, &who), Error::<T>::PermissionDenied);
+            ensure!(!VoteMembers::<T>::contains_key((&dao_account, &proposal_index), &who), Error::<T>::MemberAlreadyVoted);
+
+            let proposal_id = Self::proposal_queue(&dao_account, &proposal_index);
+
+            if let Some(proposal) = Self::proposal(&dao_account, &proposal_id) {
+                let dao = Self::dao(&dao_account);
+
+                let current_period = Self::get_current_period(&dao)?;
+                let starting_period = &proposal.starting_period;
+                let voting_period = &dao.voting_period;
+                let has_voting_period_expired =  current_period >= starting_period.checked_add(*voting_period).ok_or(Error::<T>::NumOverflow)?;
+
+                ensure!(has_voting_period_expired, Error::<T>::ExpiredPeriod);
+
+                let member = Self::member(&dao_account, &who);
+                let member_shares = &member.shares;
+
+                if yes {
+                    let old_yes_votes = &proposal.yes_votes;
+                    let yes_votes = Self::add_vote(*old_yes_votes, *member_shares)?;
+
+                    let proposal = Proposal {
+                        yes_votes,
+                        ..proposal
+                    };
+                    let member = Member {
+                        highest_index_yes_vote: proposal_index.clone(),
+                        ..member
+                    };
+
+                    Members::<T>::insert(&dao_account, &who, member);
+                    Proposals::<T>::insert(&dao_account, &proposal_id, proposal);
+
+                } else {
+                    let old_no_votes = &proposal.no_votes;
+                    let no_votes = Self::add_vote(*old_no_votes, *member_shares)?;
+                    let proposal = Proposal {
+                        no_votes,
+                        ..proposal
+                    };
+                    Proposals::<T>::insert(&dao_account, &proposal_id, proposal);
+                }
+                // emit event
+
+            } else {
+                Err(Error::<T>::ProposalNotFound)?
+            }
             Ok(())
         }
     }
@@ -434,28 +495,35 @@ impl<T: Config> Module<T> {
         }
     }
 
-    pub fn get_current_period(dao_account: &T::AccountId) -> Result<u128, DispatchError> {
-        let dao = Self::dao(dao_account);
-        let summoning_time = Self::blocknumber_to_u128(dao.clone().summoning_time)?;
+    pub fn get_current_period(
+        dao: &DAOInfo<T::AccountId, T::BlockNumber, BalanceOf<T>>,
+    ) -> Result<u128, DispatchError> {
+        let summoning_time = &dao.summoning_time;
+        let u128_summoning_time = Self::blocknumber_to_u128(*summoning_time)?;
+
         let now = Self::blocknumber_to_u128(<system::Pallet<T>>::block_number())?;
         let period = now
-            .checked_sub(summoning_time)
+            .checked_sub(u128_summoning_time)
             .ok_or(Error::<T>::NumOverflow)?;
+
+        let period_duration = &dao.period_duration;
         let period = period
-            .checked_div(dao.period_duration)
+            .checked_div(*period_duration)
             .ok_or(Error::<T>::NumOverflow)?;
         Ok(period)
     }
 
-    pub fn calculate_starting_period(dao_account: &T::AccountId) -> Result<u128, DispatchError> {
-        let current_period = Self::get_current_period(dao_account)?;
-        let queue_index = Self::queue_index_increment(dao_account)?;
+    pub fn calculate_starting_period(
+        dao: &DAOInfo<T::AccountId, T::BlockNumber, BalanceOf<T>>,
+    ) -> Result<u128, DispatchError> {
+        let current_period = Self::get_current_period(&dao)?;
+        let queue_index = Self::queue_index_increment(&dao.account_id)?;
 
         let period = if queue_index != 0 {
             let now_index = queue_index.checked_sub(1).ok_or(Error::<T>::NumOverflow)?;
-            let id = Self::proposal_queue(dao_account, now_index);
-       
-            match Self::proposal(dao_account, id) {
+            let id = Self::proposal_queue(&dao.account_id, now_index);
+
+            match Self::proposal(&dao.account_id, id) {
                 None => Err(Error::<T>::ProposalNotFound)?,
                 Some(proposal) => proposal.starting_period,
             }
@@ -464,6 +532,13 @@ impl<T: Config> Module<T> {
         };
 
         Ok(max(current_period, period))
+    }
+
+    pub fn add_vote(now_vote: u128, shares: u128) -> Result<u128, DispatchError> {
+        let added_vote = now_vote
+            .checked_div(shares)
+            .ok_or(Error::<T>::NumOverflow)?;
+        Ok(added_vote)
     }
 
     pub fn run(data: Vec<u8>) -> Result<bool, DispatchError> {
