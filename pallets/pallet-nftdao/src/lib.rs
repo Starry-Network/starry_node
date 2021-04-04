@@ -167,7 +167,8 @@ decl_error! {
         ProposalNotFound,
         InsufficientBalances,
         SponsoredProposal,
-        CancelledProposal
+        CancelledProposal,
+        CanNotSponsorProposal
     }
 }
 
@@ -319,6 +320,12 @@ decl_module! {
             let block_number = <system::Pallet<T>>::block_number();
 
             if let Some(proposal) = Self::proposal(&dao_account, proposal_id) {
+                // if proposal is Sponsored/ Processed/ DidPass/ Cancelled, can't Sponsor
+                match &proposal.status {
+                    None => (),
+                    Some(_status) => Err(Error::<T>::CanNotSponsorProposal)?,
+                }
+
                 let queue_index = Self::queue_index_increment(&dao_account)?;
 
                 let proposal = Proposal {
@@ -341,6 +348,11 @@ decl_module! {
             Ok(())
         }
 
+        #[weight = 10_000]
+        pub fn vote_proposal(origin, dao_account: T::AccountId, proposal_id: u128) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+            Ok(())
+        }
     }
 }
 
@@ -348,18 +360,6 @@ impl<T: Config> Module<T> {
     pub fn account_id() -> T::AccountId {
         PALLET_ID.into_account()
     }
-
-    // pub fn escrow_id(dao_id: DAOId) -> T::AccountId {
-    //     dao_id.into_sub_account(b"escrow_id")
-    // }
-
-    // pub fn try_into_daoid(dao_account: &T::AccountId) -> Result<DAOId, DispatchError> {
-    //     if let Some(id) = DAOId::try_from_account(dao_account) {
-    //         Ok(id)
-    //     } else {
-    //         Err(Error::<T>::ConvertFailed)?
-    //     }
-    // }
 
     fn nonce_increment() -> Result<u128, DispatchError> {
         let nonce = Nonce::try_mutate(|nonce| -> Result<u128, DispatchError> {
@@ -420,30 +420,6 @@ impl<T: Config> Module<T> {
             Ok(0)
         }
     }
-
-    // pub fn dao_account_id(
-    //     summoner_address: &T::AccountId,
-    //     name: &Vec<u8>,
-    // ) -> Result<T::AccountId, DispatchError> {
-    //     let nonce = Self::nonce_increment()?;
-    //     let seed = T::RandomnessSource::random_seed();
-
-    //     let hash = BlakeTwo256::hash(&(name, seed).encode());
-    //     let hash = BlakeTwo256::hash(&("awesome nft dao!", summoner_address, hash, nonce).encode());
-
-    //     let id: [u8; 32] = hash.into();
-    //     let dao_id: DAOId = DAOId(id);
-
-    //     Ok(dao_id.into_account())
-    // }
-
-    // pub fn u64_to_balance(input: u64) -> Result<T::BlockNumber, DispatchError> {
-    //     if let Some(blocknumber) = TryInto::<T::BlockNumber>::try_into(input).ok() {
-    //         Ok(blocknumber)
-    //     } else {
-    //         Err(Error::<T>::ConvertFailed)?
-    //     }
-    // }
 
     pub fn run(data: Vec<u8>) -> Result<bool, DispatchError> {
         if let Ok(action) = T::Action::decode(&mut &data[..]) {
