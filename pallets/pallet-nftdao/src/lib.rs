@@ -29,7 +29,7 @@ use sp_runtime::{
     ModuleId,
 };
 
-use sp_std::{convert::TryInto, vec::Vec};
+use sp_std::{cmp::max, convert::TryInto, vec::Vec};
 
 use sp_core::TypeId;
 
@@ -59,8 +59,9 @@ pub struct DAOInfo<AccountId, BlockNumber, Balance> {
     pub account_id: AccountId,
     pub escrow_id: AccountId,
     pub name: Vec<u8>,
-    pub vote_period: BlockNumber,
-    pub grace_period: BlockNumber,
+    pub period_duration: u128,
+    pub vote_period: u128,
+    pub grace_period: u128,
     pub metadata: Vec<u8>,
     pub total_shares: u128,
     pub summoning_time: BlockNumber,
@@ -84,14 +85,14 @@ pub enum ProposalStatus {
 }
 
 #[derive(Encode, Decode, Default, Clone, PartialEq)]
-pub struct Proposal<AccountId, Balance, Hash, BlockNumber> {
+pub struct Proposal<AccountId, Balance, Hash> {
     pub applicant: AccountId,
     pub proposer: AccountId,
     pub sponsor: Option<AccountId>,
     pub shares_requested: u128,
     pub tribute_offered: Balance,
     pub tribute_nft: Option<(Hash, u128)>,
-    pub starting_period: BlockNumber,
+    pub starting_period: u128,
     // aye, nay
     pub yes_votes: u128,
     pub no_votes: u128,
@@ -134,11 +135,11 @@ decl_storage! {
         // dao account => proposal id
         pub LastProposalId get(fn last_proposal_id): map hasher(blake2_128_concat) T::AccountId  => Option<u128>;
         // (dao account, proposal id) => proposal
-        pub Proposals get(fn proposal): double_map hasher(blake2_128_concat) T::AccountId, hasher(blake2_128_concat) u128 => Option<Proposal<T::AccountId, BalanceOf<T>, T::Hash, T::BlockNumber>>;
+        pub Proposals get(fn proposal): double_map hasher(blake2_128_concat) T::AccountId, hasher(blake2_128_concat) u128 => Option<Proposal<T::AccountId, BalanceOf<T>, T::Hash>>;
         //  dao account => proposal in queue index
-        // pub LastQueueIndex get(fn last_queue_index): map hasher(blake2_128_concat)  T::AccountId => Option<u128>;
-        // (dao account, proposal id) => ()
-        pub ProposalQueues get(fn proposal_queue): double_map hasher(blake2_128_concat) T::AccountId, hasher(blake2_128_concat) u128 => ();
+        pub LastQueueIndex get(fn last_queue_index): map hasher(blake2_128_concat)  T::AccountId => Option<u128>;
+        // (dao account, proposal queue index) => proposal id
+        pub ProposalQueues get(fn proposal_queue): double_map hasher(blake2_128_concat) T::AccountId, hasher(blake2_128_concat) u128 => u128;
 
     }
 }
@@ -181,10 +182,11 @@ decl_module! {
         fn deposit_event() = default;
 
         #[weight = 10_000 ]
-        pub fn create_dao(origin, name: Vec<u8>, vote_period: T::BlockNumber, grace_period: T::BlockNumber, metadata: Vec<u8>, shares_requested: u128, proposal_deposit: BalanceOf<T>, processing_reward: BalanceOf<T>, dilution_bound: u128 ) -> DispatchResult {
+        pub fn create_dao(origin, name: Vec<u8>, period_duration: u128, vote_period: u128, grace_period: u128, metadata: Vec<u8>, shares_requested: u128, proposal_deposit: BalanceOf<T>, processing_reward: BalanceOf<T>, dilution_bound: u128 ) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
             ensure!(proposal_deposit >= processing_reward, Error::<T>::DepositSmallerThanReward);
+            ensure!(period_duration > Zero::zero(), Error::<T>::ValueShouldLargeThanZero);
             ensure!(vote_period > Zero::zero(), Error::<T>::ValueShouldLargeThanZero);
             ensure!(grace_period > Zero::zero(), Error::<T>::ValueShouldLargeThanZero);
             ensure!(dilution_bound > Zero::zero(), Error::<T>::ValueShouldLargeThanZero);
@@ -199,6 +201,7 @@ decl_module! {
                 account_id: dao_account.clone(),
                 escrow_id: escrow_id.clone(),
                 name,
+                period_duration,
                 vote_period,
                 grace_period,
                 metadata,
@@ -234,7 +237,8 @@ decl_module! {
 
             let escrow_id = Self::escrow(&dao_account);
 
-            let starting_period: T::BlockNumber = Zero::zero();
+            // let starting_period: T::BlockNumber = Zero::zero();
+            let starting_period: u128 = 0;
 
             let proposal = Proposal {
                 applicant,
@@ -317,7 +321,7 @@ decl_module! {
 
             let dao = Self::dao(&dao_account);
             let escrow_id = Self::escrow(&dao_account);
-            let block_number = <system::Pallet<T>>::block_number();
+            // let block_number = <system::Pallet<T>>::block_number();
 
             if let Some(proposal) = Self::proposal(&dao_account, proposal_id) {
                 // if proposal is Sponsored/ Processed/ DidPass/ Cancelled, can't Sponsor
@@ -326,12 +330,13 @@ decl_module! {
                     Some(_status) => Err(Error::<T>::CanNotSponsorProposal)?,
                 }
 
-                // let queue_index = Self::queue_index_increment(&dao_account)?;
+                let queue_index = Self::queue_index_increment(&dao_account)?;
+                let starting_period = Self::calculate_starting_period(&dao_account)?;
 
                 let proposal = Proposal {
                     sponsor: Some(who.clone()),
                     status: Some(ProposalStatus::Sponsored),
-                    starting_period: block_number,
+                    starting_period,
                     ..proposal
                 };
 
@@ -339,8 +344,8 @@ decl_module! {
 
                 Proposals::<T>::insert(&dao_account, &proposal_id, proposal);
                 // UserCurrencyBalance::<T>::insert(&dao_account, &escrow_id, dao.proposal_deposit);
-                ProposalQueues::<T>::insert(&dao_account, &proposal_id, ());
-                // LastQueueIndex::<T>::insert(&dao_account, &queue_index);
+                ProposalQueues::<T>::insert(&dao_account, &queue_index, &proposal_id);
+                LastQueueIndex::<T>::insert(&dao_account, &queue_index);
             } else {
                 Err(Error::<T>::ProposalNotFound)?
             }
@@ -349,7 +354,7 @@ decl_module! {
         }
 
         #[weight = 10_000]
-        pub fn vote_proposal(origin, dao_account: T::AccountId, proposal_index: u128) -> DispatchResult {
+        pub fn vote_proposal(origin, dao_account: T::AccountId, proposal_id: u128) -> DispatchResult {
             let who = ensure_signed(origin)?;
             Ok(())
         }
@@ -412,14 +417,54 @@ impl<T: Config> Module<T> {
         }
     }
 
-    // pub fn queue_index_increment(dao_account: &T::AccountId) -> Result<u128, DispatchError> {
-    //     if let Some(queue_index) = Self::last_queue_index(dao_account) {
-    //         let queue_index = queue_index.checked_add(1).ok_or(Error::<T>::NumOverflow)?;
-    //         Ok(queue_index)
-    //     } else {
-    //         Ok(0)
-    //     }
-    // }
+    pub fn queue_index_increment(dao_account: &T::AccountId) -> Result<u128, DispatchError> {
+        if let Some(queue_index) = Self::last_queue_index(dao_account) {
+            let queue_index = queue_index.checked_add(1).ok_or(Error::<T>::NumOverflow)?;
+            Ok(queue_index)
+        } else {
+            Ok(0)
+        }
+    }
+
+    pub fn blocknumber_to_u128(input: T::BlockNumber) -> Result<u128, DispatchError> {
+        if let Some(converted_number) = TryInto::<u128>::try_into(input).ok() {
+            Ok(converted_number)
+        } else {
+            Err(Error::<T>::ConvertFailed)?
+        }
+    }
+
+    pub fn get_current_period(dao_account: &T::AccountId) -> Result<u128, DispatchError> {
+        let dao = Self::dao(dao_account);
+        let summoning_time = Self::blocknumber_to_u128(dao.clone().summoning_time)?;
+        let now = Self::blocknumber_to_u128(<system::Pallet<T>>::block_number())?;
+        let period = now
+            .checked_sub(summoning_time)
+            .ok_or(Error::<T>::NumOverflow)?;
+        let period = period
+            .checked_div(dao.period_duration)
+            .ok_or(Error::<T>::NumOverflow)?;
+        Ok(period)
+    }
+
+    pub fn calculate_starting_period(dao_account: &T::AccountId) -> Result<u128, DispatchError> {
+        let current_period = Self::get_current_period(dao_account)?;
+        let queue_index = Self::queue_index_increment(dao_account)?;
+
+        let period = if queue_index != 0 {
+            let now_index = queue_index.checked_sub(1).ok_or(Error::<T>::NumOverflow)?;
+            let id = Self::proposal_queue(dao_account, now_index);
+       
+            match Self::proposal(dao_account, id) {
+                None => Err(Error::<T>::ProposalNotFound)?,
+                Some(proposal) => proposal.starting_period,
+            }
+        } else {
+            0
+        };
+
+        Ok(max(current_period, period))
+    }
 
     pub fn run(data: Vec<u8>) -> Result<bool, DispatchError> {
         if let Ok(action) = T::Action::decode(&mut &data[..]) {
