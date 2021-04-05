@@ -520,11 +520,11 @@ decl_module! {
                 };
 
                 if let Some((collection_id, token_id)) = *tribute_nft {
-                    T::NFT::_transfer_non_fungible(escrow_id.clone(), Self::account_id(), collection_id, token_id, 1)?;
+                    T::NFT::_transfer_non_fungible(escrow_id.clone(), dao_account.clone(), collection_id, token_id, 1)?;
                 }
 
                 if !(tribute_offered == &Zero::zero()) {
-                    T::Currency::transfer(&escrow_id, &Self::account_id(), *tribute_offered, AllowDeath)?;
+                    T::Currency::transfer(&escrow_id, &dao_account, *tribute_offered, AllowDeath)?;
                 }
 
                 Members::<T>::insert(&dao_account, &proposal.applicant, member);
