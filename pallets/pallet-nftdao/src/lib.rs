@@ -97,11 +97,13 @@ pub struct Proposal<AccountId, Balance, Hash> {
     pub yes_votes: u128,
     pub no_votes: u128,
     pub details: Vec<u8>,
+    pub action: Option<Vec<u8>>,
     // pub status: Option<ProposalStatus>,
     pub sponsored: bool,
     pub processed: bool,
     pub did_pass: bool,
     pub cancelled: bool,
+    pub executed: bool,
     pub max_total_shares_at_yes_vote: u128,
 }
 
@@ -242,7 +244,7 @@ decl_module! {
         }
 
         #[weight = 10_000]
-        pub fn submit_proposal(origin, dao_account: T::AccountId, applicant: T::AccountId, shares_requested: u128, tribute_offered: BalanceOf<T>, tribute_nft: Option<(T::Hash, u128)>,  details: Vec<u8>) -> DispatchResult {
+        pub fn submit_proposal(origin, dao_account: T::AccountId, applicant: T::AccountId, shares_requested: u128, tribute_offered: BalanceOf<T>, tribute_nft: Option<(T::Hash, u128)>,  details: Vec<u8>, action: Option<Vec<u8>>) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
             ensure!(
@@ -266,11 +268,13 @@ decl_module! {
                 yes_votes:0,
                 no_votes:0,
                 details,
+                action,
                 // status: None::<ProposalStatus>,
                 sponsored: false,
                 processed: false,
                 did_pass: false,
                 cancelled: false,
+                executed: false,
                 max_total_shares_at_yes_vote: 0
             };
 
