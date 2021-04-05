@@ -687,29 +687,24 @@ impl<T: Config> Module<T> {
         }
     }
 
-    pub fn blocknumber_to_u128(input: T::BlockNumber) -> Result<u128, DispatchError> {
-        if let Some(blocknumber) = TryInto::<u128>::try_into(input).ok() {
-            Ok(blocknumber)
-        } else {
-            Err(Error::<T>::ConvertFailed)?
-        }
+    pub fn block_number_to_u128(input: T::BlockNumber) -> Result<u128, DispatchError> {
+        let block_number =
+            TryInto::<u128>::try_into(input).map_err(|_| Error::<T>::ConvertFailed)?;
+        Ok(block_number)
     }
 
     pub fn u128_to_balance(input: u128) -> Result<BalanceOf<T>, DispatchError> {
-        if let Some(balance) = input.try_into().ok() {
-            Ok(balance)
-        } else {
-            Err(Error::<T>::ConvertFailed)?
-        }
+        let balance = input.try_into().map_err(|_| Error::<T>::ConvertFailed)?;
+        Ok(balance)
     }
 
     pub fn get_current_period(
         dao: &DAOInfo<T::AccountId, T::BlockNumber, BalanceOf<T>>,
     ) -> Result<u128, DispatchError> {
         let summoning_time = &dao.summoning_time;
-        let u128_summoning_time = Self::blocknumber_to_u128(*summoning_time)?;
+        let u128_summoning_time = Self::block_number_to_u128(*summoning_time)?;
 
-        let now = Self::blocknumber_to_u128(<system::Pallet<T>>::block_number())?;
+        let now = Self::block_number_to_u128(<system::Pallet<T>>::block_number())?;
         let period = now
             .checked_sub(u128_summoning_time)
             .ok_or(Error::<T>::NumOverflow)?;
