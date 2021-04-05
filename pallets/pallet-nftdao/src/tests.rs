@@ -12,7 +12,7 @@ fn it_works_for_default_value() {
         let preimage = Call::Template(<pallet_template::Call<Test>>::do_something(value)).encode();
         let _h = BlakeTwo256::hash(&preimage[..]);
 
-        let is_ok = DaoModule::run(preimage).unwrap();
+        let is_ok = DaoModule::run(1, &preimage).unwrap();
         assert_eq!(is_ok, true);
         assert_eq!(Template::something(), Some(value));
 

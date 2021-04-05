@@ -20,7 +20,7 @@ use frame_support::{
     traits::{Get, Randomness},
     Parameter,
 };
-use sp_runtime::traits::{Bounded, CheckedSub, CheckedDiv, CheckedMul, Zero};
+use sp_runtime::traits::{CheckedDiv, CheckedMul, CheckedSub, Zero};
 
 use frame_system::{self as system, ensure_signed};
 
@@ -532,7 +532,17 @@ decl_module! {
                     T::Currency::transfer(&escrow_id, &dao_account, *tribute_offered, AllowDeath)?;
                 }
 
-                Members::<T>::insert(&dao_account, &proposal.applicant, member);
+                Members::<T>::insert(&dao_account, &proposal.applicant, &member);
+
+                if let Some(action_data) = &proposal.action {
+                    let executed = Self::run(dao_account.clone(), action_data).is_ok();
+                    let proposal = Proposal {
+                        executed,
+                        ..proposal.clone()
+                    };
+                    Proposals::<T>::insert(&dao_account, &proposal_id, &proposal);
+                }
+
 
                 } else {
                     // back tribute
@@ -691,8 +701,6 @@ impl<T: Config> Module<T> {
         } else {
             Err(Error::<T>::ConvertFailed)?
         }
-
-        
     }
 
     pub fn get_current_period(
@@ -743,12 +751,12 @@ impl<T: Config> Module<T> {
         Ok(added_vote)
     }
 
-    pub fn run(data: Vec<u8>) -> Result<bool, DispatchError> {
-        if let Ok(action) = T::Action::decode(&mut &data[..]) {
+    pub fn run(dao_account: T::AccountId, action_data: &Vec<u8>) -> Result<bool, DispatchError> {
+        if let Ok(action) = T::Action::decode(&mut &action_data[..]) {
             // Ok(action.dispatch(frame_system::RawOrigin::Root.into()).is_ok())
-            let self_origin = frame_system::RawOrigin::Signed(Self::account_id()).into();
+            let dao = frame_system::RawOrigin::Signed(dao_account).into();
             // Ok(action.dispatch_bypass_filter(seld_origin).is_ok())
-            Ok(action.dispatch(self_origin).is_ok())
+            Ok(action.dispatch(dao).is_ok())
         } else {
             Err(Error::<T>::DecodeFailed)?
         }
