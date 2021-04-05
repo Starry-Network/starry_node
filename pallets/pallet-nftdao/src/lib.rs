@@ -20,7 +20,7 @@ use frame_support::{
     traits::{Get, Randomness},
     Parameter,
 };
-use sp_runtime::traits::{Bounded, Zero};
+use sp_runtime::traits::{Bounded, CheckedSub, Zero};
 
 use frame_system::{self as system, ensure_signed};
 
@@ -97,7 +97,12 @@ pub struct Proposal<AccountId, Balance, Hash> {
     pub yes_votes: u128,
     pub no_votes: u128,
     pub details: Vec<u8>,
-    pub status: Option<ProposalStatus>,
+    // pub status: Option<ProposalStatus>,
+    pub sponsored: bool,
+    pub processed: bool,
+    pub did_pass: bool,
+    pub cancelled: bool,
+    pub max_total_shares_at_yes_vote: u128,
 }
 
 // #[derive(Encode, Decode, Copy, Clone, PartialEq, Eq)]
@@ -129,7 +134,7 @@ decl_storage! {
         // dao account => dao escrows account
         pub Escrows get(fn escrow): map hasher(blake2_128_concat)  T::AccountId => T::AccountId;
         // user currency balance: dao account , user account => balance
-        // pub UserCurrencyBalance get(fn user_currency_balance): double_map hasher(blake2_128_concat) T::AccountId, hasher(blake2_128_concat) T::AccountId => BalanceOf<T>;
+        pub UserCurrencyBalance get(fn user_currency_balance): double_map hasher(blake2_128_concat) T::AccountId, hasher(blake2_128_concat) T::AccountId => BalanceOf<T>;
         // user nft: (dao account, user account), collection  => (token id)
         // pub UserNFT get(fn user_nft): double_map hasher(blake2_128_concat) (T::AccountId, T::AccountId), hasher(blake2_128_concat) (T::Hash, u128)=> ();
         // dao account => proposal id
@@ -174,6 +179,10 @@ decl_error! {
         CanNotSponsorProposal,
         ExpiredPeriod,
         MemberAlreadyVoted,
+        NotReadyToProcessed,
+        ProcessedProposal,
+        NoneStatus,
+        PrevProposalUnprocessed
     }
 }
 
@@ -255,7 +264,12 @@ decl_module! {
                 yes_votes:0,
                 no_votes:0,
                 details,
-                status: None::<ProposalStatus>
+                // status: None::<ProposalStatus>,
+                sponsored: false,
+                processed: false,
+                did_pass: false,
+                cancelled: false,
+                max_total_shares_at_yes_vote: 0
             };
 
             if let Some((collection_id, token_id)) = tribute_nft {
@@ -287,13 +301,11 @@ decl_module! {
             if let Some(proposal) = Self::proposal(&dao_account, proposal_id) {
                 ensure!(&who == &proposal.proposer, Error::<T>::PermissionDenied);
 
-                if let Some(status) = &proposal.status {
-                    ensure!(status != &ProposalStatus::Sponsored, Error::<T>::SponsoredProposal);
-                    ensure!(status != &ProposalStatus::Cancelled, Error::<T>::CancelledProposal);
-                }
+                ensure!(!&proposal.sponsored, Error::<T>::SponsoredProposal);
+                ensure!(!&proposal.cancelled, Error::<T>::CancelledProposal);
 
                 let proposal = Proposal{
-                    status: Some(ProposalStatus::Cancelled),
+                    cancelled: true,
                     ..proposal
                 };
 
@@ -331,18 +343,15 @@ decl_module! {
             // let block_number = <system::Pallet<T>>::block_number();
 
             if let Some(proposal) = Self::proposal(&dao_account, proposal_id) {
-                // if proposal is Sponsored/ Processed/ DidPass/ Cancelled, can't Sponsor
-                match &proposal.status {
-                    None => (),
-                    Some(_status) => Err(Error::<T>::CanNotSponsorProposal)?,
-                }
+                ensure!(!&proposal.sponsored, Error::<T>::SponsoredProposal);
+                ensure!(!&proposal.cancelled, Error::<T>::CancelledProposal);
 
                 let queue_index = Self::queue_index_increment(&dao_account)?;
                 let starting_period = Self::calculate_starting_period(&dao)?;
 
                 let proposal = Proposal {
                     sponsor: Some(who.clone()),
-                    status: Some(ProposalStatus::Sponsored),
+                    sponsored: true,
                     starting_period,
                     ..proposal
                 };
@@ -390,11 +399,21 @@ decl_module! {
                 if yes {
                     let old_yes_votes = &proposal.yes_votes;
                     let yes_votes = Self::add_vote(*old_yes_votes, *member_shares)?;
+                    let total_shares = &dao.total_shares;
 
-                    let proposal = Proposal {
-                        yes_votes,
-                        ..proposal
+                    let proposal = if total_shares > &proposal.max_total_shares_at_yes_vote {
+                        Proposal {
+                            yes_votes,
+                            max_total_shares_at_yes_vote: *total_shares,
+                            ..proposal
+                        }
+                    } else {
+                        Proposal {
+                            yes_votes,
+                            ..proposal
+                        }
                     };
+
                     let member = Member {
                         highest_index_yes_vote: proposal_index.clone(),
                         ..member
@@ -419,6 +438,121 @@ decl_module! {
             }
             Ok(())
         }
+
+
+        #[weight = 10_000]
+        pub fn process_proposal(origin, dao_account: T::AccountId, proposal_index: u128) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+
+            ensure!(DAOs::<T>::contains_key(&dao_account), Error::<T>::DAONotFound);
+            ensure!(ProposalQueues::<T>::contains_key(&dao_account, &proposal_index), Error::<T>::ProposalNotFound);
+
+            let proposal_id = Self::proposal_queue(&dao_account, &proposal_index);
+
+            if let Some(proposal) = Self::proposal(&dao_account, &proposal_id) {
+                let dao = Self::dao(&dao_account);
+                let escrow_id = Self::escrow(&dao_account);
+
+                let current_period = Self::get_current_period(&dao)?;
+                let starting_period = &proposal.starting_period;
+                let voting_period = &dao.voting_period;
+                let grace_period = &dao.grace_period;
+
+                let passed_period = starting_period.checked_sub(voting_period).ok_or(Error::<T>::NumOverflow)?;
+                let passed_period = passed_period.checked_sub(*grace_period).ok_or(Error::<T>::NumOverflow)?;
+
+                ensure!(current_period >= passed_period, Error::<T>::NotReadyToProcessed);
+
+                ensure!(!&proposal.processed, Error::<T>::ProcessedProposal);
+
+                let prev_proposal_unprocessed = if &proposal_index == &Zero::zero() {
+                    false
+                } else {
+                    let prev_index = &proposal_index.checked_sub(1).ok_or(Error::<T>::NumOverflow)?;
+                    let prev_id = Self::proposal_queue(&dao.account_id, prev_index);
+                    if let Some(prev_proposal) = Self::proposal(&dao.account_id, prev_id) {
+                        prev_proposal.processed
+                    } else {
+                        Err(Error::<T>::ProposalNotFound)?
+                    }
+                };
+
+                ensure!(!prev_proposal_unprocessed, Error::<T>::PrevProposalUnprocessed);
+
+                let proposal = Proposal {
+                    processed: true,
+                    ..proposal
+                };
+
+                Proposals::<T>::insert(&dao_account, &proposal_id, &proposal);
+
+                let dilution_bound = &dao.dilution_bound;
+                let dilution = &dao.total_shares.checked_mul(*dilution_bound).ok_or(Error::<T>::NumOverflow)?;
+                let did_pass = if &proposal.yes_votes > &proposal.no_votes {
+                    dilution < &proposal.max_total_shares_at_yes_vote
+                } else {
+                    false
+                };
+
+                let tribute_nft = &proposal.tribute_nft;
+                let tribute_offered = &proposal.tribute_offered;
+
+                if did_pass {
+                    let proposal = Proposal {
+                        processed: true,
+                        ..proposal.clone()
+                    };
+                    Proposals::<T>::insert(&dao_account, &proposal_id, &proposal);
+
+                    let shares_requested = &proposal.shares_requested;
+                    let member = if Members::<T>::contains_key(&dao_account, &proposal.applicant) {
+                        let old_member = Self::member(&dao_account, &proposal.applicant);
+                        let shares = old_member.shares.checked_add(*shares_requested).ok_or(Error::<T>::NumOverflow)?;
+                        Member {
+                            shares,
+                            ..old_member
+                        }
+                    } else {
+                        Member {
+                            shares: *shares_requested,
+                            highest_index_yes_vote: 0
+                    }
+                };
+
+                if let Some((collection_id, token_id)) = *tribute_nft {
+                    T::NFT::_transfer_non_fungible(escrow_id.clone(), Self::account_id(), collection_id, token_id, 1)?;
+                }
+
+                if !(tribute_offered == &Zero::zero()) {
+                    T::Currency::transfer(&escrow_id, &Self::account_id(), *tribute_offered, AllowDeath)?;
+                }
+
+                Members::<T>::insert(&dao_account, &proposal.applicant, member);
+
+                } else {
+                    // back tribute
+                    if let Some((collection_id, token_id)) = *tribute_nft {
+                        T::NFT::_transfer_non_fungible(escrow_id.clone(), proposal.clone().proposer, collection_id, token_id, 1)?;
+                    }
+                    if !(tribute_offered == &Zero::zero()) {
+                        T::Currency::transfer(&escrow_id, &proposal.proposer, *tribute_offered, AllowDeath)?;
+                    }
+                }
+
+                let proposal_deposit = &dao.proposal_deposit;
+                let processing_reward = &dao.processing_reward;
+                let back_to_sponsor = proposal_deposit.checked_sub(processing_reward).ok_or(Error::<T>::NumOverflow)?;
+
+                T::Currency::transfer(&escrow_id, &who, *processing_reward, AllowDeath)?;
+                T::Currency::transfer(&escrow_id, &proposal.proposer, back_to_sponsor, AllowDeath)?;
+            }
+            else {
+                Err(Error::<T>::ProposalNotFound)?
+            }
+
+            Ok(())
+        }
+
     }
 }
 
@@ -517,11 +651,13 @@ impl<T: Config> Module<T> {
         dao: &DAOInfo<T::AccountId, T::BlockNumber, BalanceOf<T>>,
     ) -> Result<u128, DispatchError> {
         let current_period = Self::get_current_period(&dao)?;
-        let queue_index = Self::queue_index_increment(&dao.account_id)?;
+        let next_queue_index = Self::queue_index_increment(&dao.account_id)?;
 
-        let period = if queue_index != 0 {
-            let now_index = queue_index.checked_sub(1).ok_or(Error::<T>::NumOverflow)?;
-            let id = Self::proposal_queue(&dao.account_id, now_index);
+        let period = if next_queue_index != 0 {
+            let last_index = next_queue_index
+                .checked_sub(1)
+                .ok_or(Error::<T>::NumOverflow)?;
+            let id = Self::proposal_queue(&dao.account_id, last_index);
 
             match Self::proposal(&dao.account_id, id) {
                 None => Err(Error::<T>::ProposalNotFound)?,
