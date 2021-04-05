@@ -20,7 +20,7 @@ use frame_support::{
     traits::{Get, Randomness},
     Parameter,
 };
-use sp_runtime::traits::{Bounded, CheckedSub, Zero};
+use sp_runtime::traits::{Bounded, CheckedSub, CheckedDiv, CheckedMul, Zero};
 
 use frame_system::{self as system, ensure_signed};
 
@@ -174,6 +174,7 @@ decl_error! {
         NotDAOMember,
         ProposalNotFound,
         InsufficientBalances,
+        InsufficientShares,
         SponsoredProposal,
         CancelledProposal,
         CanNotSponsorProposal,
@@ -182,7 +183,8 @@ decl_error! {
         NotReadyToProcessed,
         ProcessedProposal,
         NoneStatus,
-        PrevProposalUnprocessed
+        PrevProposalUnprocessed,
+        CanNotRagequit,
     }
 }
 
@@ -232,7 +234,7 @@ decl_module! {
 
             DAOs::<T>::insert(&dao_account, dao);
             Escrows::<T>::insert(&dao_account, escrow_id);
-            Members::<T>::insert(&dao_account, &who,  member);
+            Members::<T>::insert(&dao_account, &who, member);
 
             Self::deposit_event(RawEvent::DAOCreated(who, dao_account));
 
@@ -439,7 +441,6 @@ decl_module! {
             Ok(())
         }
 
-
         #[weight = 10_000]
         pub fn process_proposal(origin, dao_account: T::AccountId, proposal_index: u128) -> DispatchResult {
             let who = ensure_signed(origin)?;
@@ -545,6 +546,8 @@ decl_module! {
 
                 T::Currency::transfer(&escrow_id, &who, *processing_reward, AllowDeath)?;
                 T::Currency::transfer(&escrow_id, &proposal.proposer, back_to_sponsor, AllowDeath)?;
+
+                // emit event
             }
             else {
                 Err(Error::<T>::ProposalNotFound)?
@@ -553,6 +556,55 @@ decl_module! {
             Ok(())
         }
 
+        #[weight = 10_000]
+        pub fn ragequit(origin, dao_account: T::AccountId, shares_to_burn: u128) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+
+            ensure!(DAOs::<T>::contains_key(&dao_account), Error::<T>::DAONotFound);
+            ensure!(Members::<T>::contains_key(&dao_account, &who), Error::<T>::PermissionDenied);
+
+            let member = Self::member(&dao_account, &who);
+
+            ensure!(&member.shares >= &shares_to_burn, Error::<T>::InsufficientShares);
+            ensure!(ProposalQueues::<T>::contains_key(&dao_account, &member.highest_index_yes_vote), Error::<T>::ProposalNotFound);
+
+            let proposal_id = Self::proposal_queue(&dao_account, &member.highest_index_yes_vote);
+
+            if let Some(proposal) = Self::proposal(&dao_account, &proposal_id) {
+                ensure!(proposal.processed, Error::<T>::CanNotRagequit);
+            }
+
+            let dao = Self::dao(&dao_account);
+
+            let shares = &member.shares.checked_sub(shares_to_burn.clone()).ok_or(Error::<T>::NumOverflow)?;
+            let total_shares = &dao.total_shares.checked_sub(shares_to_burn.clone()).ok_or(Error::<T>::NumOverflow)?;
+
+            let member = Member {
+                shares: *shares,
+                ..member
+            };
+
+            let dao = DAOInfo {
+                total_shares: *total_shares,
+                ..dao
+            };
+
+            let dao_balance: BalanceOf<T> = T::Currency::free_balance(&dao_account);
+            let total_shares_as_balance = Self::u128_to_balance(*total_shares)?;
+            let shares_to_burn_as_balance = Self::u128_to_balance(shares_to_burn)?;
+
+            let splited = &dao_balance.checked_div(&total_shares_as_balance).ok_or(Error::<T>::NumOverflow)?;
+            let withdraw_balance = splited.checked_mul(&shares_to_burn_as_balance).ok_or(Error::<T>::NumOverflow)?;
+
+            T::Currency::transfer(&Self::account_id(), &who, withdraw_balance, AllowDeath)?;
+
+            Members::<T>::insert(&dao_account, &who, member);
+            DAOs::<T>::insert(&dao_account, dao);
+
+            // emit event
+
+            Ok(())
+        }
     }
 }
 
@@ -622,11 +674,21 @@ impl<T: Config> Module<T> {
     }
 
     pub fn blocknumber_to_u128(input: T::BlockNumber) -> Result<u128, DispatchError> {
-        if let Some(converted_number) = TryInto::<u128>::try_into(input).ok() {
-            Ok(converted_number)
+        if let Some(blocknumber) = TryInto::<u128>::try_into(input).ok() {
+            Ok(blocknumber)
         } else {
             Err(Error::<T>::ConvertFailed)?
         }
+    }
+
+    pub fn u128_to_balance(input: u128) -> Result<BalanceOf<T>, DispatchError> {
+        if let Some(balance) = input.try_into().ok() {
+            Ok(balance)
+        } else {
+            Err(Error::<T>::ConvertFailed)?
+        }
+
+        
     }
 
     pub fn get_current_period(
