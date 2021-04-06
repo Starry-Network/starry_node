@@ -401,7 +401,7 @@ decl_module! {
                 let voting_period = &dao.voting_period;
                 let has_voting_period_expired =  current_period >= starting_period.checked_add(*voting_period).ok_or(Error::<T>::NumOverflow)?;
 
-                ensure!(has_voting_period_expired, Error::<T>::ExpiredPeriod);
+                ensure!(!has_voting_period_expired, Error::<T>::ExpiredPeriod);
 
                 let member = Self::member(&dao_account, &who);
                 let member_shares = &member.shares;
@@ -441,6 +441,8 @@ decl_module! {
                     };
                     Proposals::<T>::insert(&dao_account, &proposal_id, proposal);
                 }
+                
+                VoteMembers::<T>::insert((&dao_account, &proposal_index), &who, ());
                 // emit event
 
             } else {
@@ -749,7 +751,7 @@ impl<T: Config> Module<T> {
 
     pub fn add_vote(now_vote: u128, shares: u128) -> Result<u128, DispatchError> {
         let added_vote = now_vote
-            .checked_div(shares)
+            .checked_add(shares)
             .ok_or(Error::<T>::NumOverflow)?;
         Ok(added_vote)
     }

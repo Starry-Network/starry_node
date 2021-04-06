@@ -10,6 +10,7 @@ use sp_runtime::{
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
+use pallet_collection::CollectionInterface;
 
 // Configure a mock runtime to test the pallet.
 frame_support::construct_runtime!(
@@ -93,16 +94,8 @@ impl pallet_dao::Config for Test {
     type NFT = NFTModule;
 }
 
-
-pub fn get_last_dao_account(summoner_address: &u64, name: &Vec<u8>) -> u64 {
-    let nonce = DaoModule::get_nonce();
-    let id = DaoModule::_dao_id(&summoner_address, &name, nonce);
-    let dao_id = crate::DAOId(id);
-    DaoModule::dao_account_id(&dao_id)
-}
-
 pub const DAO_NAME: Vec<u8> = Vec::new();
-pub const PERIOD_DURATION: u128 = 1;
+pub const PERIOD_DURATION: u128 = 2;
 pub const WRONG_PERIOD_DURATION: u128 = 0;
 pub const VOTING_PERIOD: u128 = 1;
 pub const WRONG_VOTING_PERIOD: u128 = 0;
@@ -115,6 +108,48 @@ pub const WRONG_PROPOSAL_DEPOSIT: u64 = 0;
 pub const PROCESSING_REWARD: u64 = 1;
 pub const DILUTION_BOUND: u128 = 3;
 pub const WRONG_DILUTION_BOUND: u128 = 0;
+
+pub fn mint_a_nft(minter_address: &u64) -> (H256, u128) {
+    let minter = Origin::signed(*minter_address);
+    CollectionModule::create_collection(minter.clone(), vec![2, 3, 3], false).unwrap();
+    let nonce = CollectionModule::get_nonce();
+    let collection_id = <CollectionModule as CollectionInterface<_, _>>::generate_collection_id(nonce).unwrap();
+
+    NFTModule::mint_non_fungible(
+        minter,
+        *minter_address,
+        collection_id.clone(),
+        vec![2, 3, 3],
+        1
+    ).unwrap();
+
+    (collection_id, 0)
+}
+
+pub fn get_last_dao_account(summoner_address: &u64, name: &Vec<u8>) -> u64 {
+    let nonce = DaoModule::get_nonce();
+    let id = DaoModule::_dao_id(&summoner_address, &name, nonce);
+    let dao_id = crate::DAOId(id);
+    DaoModule::dao_account_id(&dao_id)
+}
+
+pub fn create_a_dao(summoner_address: &u64, dao_name: Vec<u8>, proposal_deposit: u64, proposal_reward: u64) -> u64 {
+    let summoner = Origin::signed(*summoner_address);
+
+    DaoModule::create_dao(
+        summoner,
+        dao_name.clone(),
+        METADATA,
+        PERIOD_DURATION,
+        VOTING_PERIOD,
+        GRACE_PERIOD,
+        SHARES_REQUESTED,
+        proposal_deposit,
+        proposal_reward,
+        DILUTION_BOUND
+    ).unwrap();
+    get_last_dao_account(&summoner_address, &dao_name)
+}
 
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
