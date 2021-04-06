@@ -10,14 +10,14 @@
 use codec::{Decode, Encode};
 use frame_support::traits::{
     Currency,
-    ExistenceRequirement::{AllowDeath, KeepAlive},
+    ExistenceRequirement::AllowDeath,
 };
 
 use frame_support::{
     decl_error, decl_event, decl_module, decl_storage,
     dispatch::{DispatchError, DispatchResult},
     ensure,
-    traits::{Get, Randomness},
+    traits::Randomness,
     Parameter,
 };
 use sp_runtime::traits::{CheckedDiv, CheckedMul, CheckedSub, Zero};
@@ -173,6 +173,10 @@ decl_error! {
         NFTIsEmpty,
         DepositSmallerThanReward,
         ValueShouldLargeThanZero,
+        PeriodDurationShouldLargeThanZero,
+        VotingDurationShouldLargeThanZero,
+        GracePeriodShouldLargeThanZero,
+        DilutionBoundShouldLargeThanZero,
         NotDAOMember,
         ProposalNotFound,
         InsufficientBalances,
@@ -199,14 +203,14 @@ decl_module! {
         fn deposit_event() = default;
 
         #[weight = 10_000 ]
-        pub fn create_dao(origin, name: Vec<u8>, period_duration: u128, voting_period: u128, grace_period: u128, metadata: Vec<u8>, shares_requested: u128, proposal_deposit: BalanceOf<T>, processing_reward: BalanceOf<T>, dilution_bound: u128 ) -> DispatchResult {
+        pub fn create_dao(origin, name: Vec<u8>, metadata: Vec<u8>, period_duration: u128, voting_period: u128, grace_period: u128, shares_requested: u128, proposal_deposit: BalanceOf<T>, processing_reward: BalanceOf<T>, dilution_bound: u128 ) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
             ensure!(proposal_deposit >= processing_reward, Error::<T>::DepositSmallerThanReward);
-            ensure!(period_duration > Zero::zero(), Error::<T>::ValueShouldLargeThanZero);
-            ensure!(voting_period > Zero::zero(), Error::<T>::ValueShouldLargeThanZero);
-            ensure!(grace_period > Zero::zero(), Error::<T>::ValueShouldLargeThanZero);
-            ensure!(dilution_bound > Zero::zero(), Error::<T>::ValueShouldLargeThanZero);
+            ensure!(period_duration > Zero::zero(), Error::<T>::PeriodDurationShouldLargeThanZero);
+            ensure!(voting_period > Zero::zero(), Error::<T>::VotingDurationShouldLargeThanZero);
+            ensure!(grace_period > Zero::zero(), Error::<T>::GracePeriodShouldLargeThanZero);
+            ensure!(dilution_bound > Zero::zero(), Error::<T>::DilutionBoundShouldLargeThanZero);
 
             let dao_id = Self::dao_id(&who, &name)?;
             let dao_account = Self::dao_account_id(&dao_id);
@@ -649,14 +653,18 @@ impl<T: Config> Module<T> {
         Ok(PALLET_ID.into_sub_account((hash).encode()))
     }
 
-    pub fn dao_id(summoner_address: &T::AccountId, name: &Vec<u8>) -> Result<DAOId, DispatchError> {
-        let nonce = Self::nonce_increment()?;
+    fn _dao_id(summoner_address: &T::AccountId, name: &Vec<u8>, nonce: u128) -> [u8; 32] {
         let seed = T::RandomnessSource::random_seed();
 
         let hash = BlakeTwo256::hash(&(name, seed).encode());
         let hash = BlakeTwo256::hash(&("awesome nft dao!", summoner_address, hash, nonce).encode());
 
-        let id: [u8; 32] = hash.into();
+        hash.into()
+    }
+
+    pub fn dao_id(summoner_address: &T::AccountId, name: &Vec<u8>) -> Result<DAOId, DispatchError> {
+        let nonce = Self::nonce_increment()?;
+        let id = Self::_dao_id(summoner_address, name, nonce);
 
         Ok(DAOId(id))
     }
