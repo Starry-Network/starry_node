@@ -469,8 +469,8 @@ decl_module! {
                 let voting_period = &dao.voting_period;
                 let grace_period = &dao.grace_period;
 
-                let passed_period = starting_period.checked_sub(voting_period).ok_or(Error::<T>::NumOverflow)?;
-                let passed_period = passed_period.checked_sub(*grace_period).ok_or(Error::<T>::NumOverflow)?;
+                let passed_period = starting_period.checked_add(*voting_period).ok_or(Error::<T>::NumOverflow)?;
+                let passed_period = passed_period.checked_add(*grace_period).ok_or(Error::<T>::NumOverflow)?;
 
                 ensure!(current_period >= passed_period, Error::<T>::NotReadyToProcessed);
 
@@ -500,7 +500,7 @@ decl_module! {
                 let dilution_bound = &dao.dilution_bound;
                 let dilution = &dao.total_shares.checked_mul(*dilution_bound).ok_or(Error::<T>::NumOverflow)?;
                 let did_pass = if &proposal.yes_votes > &proposal.no_votes {
-                    dilution < &proposal.max_total_shares_at_yes_vote
+                    dilution > &proposal.max_total_shares_at_yes_vote
                 } else {
                     false
                 };
@@ -510,7 +510,7 @@ decl_module! {
 
                 if did_pass {
                     let proposal = Proposal {
-                        processed: true,
+                        did_pass: true,
                         ..proposal.clone()
                     };
                     Proposals::<T>::insert(&dao_account, &proposal_id, &proposal);
