@@ -8,10 +8,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::{Decode, Encode};
-use frame_support::traits::{
-    Currency,
-    ExistenceRequirement::AllowDeath,
-};
+use frame_support::traits::{Currency, ExistenceRequirement::AllowDeath};
 
 use frame_support::{
     decl_error, decl_event, decl_module, decl_storage,
@@ -160,6 +157,20 @@ decl_event!(
     {
         // summoner_account, dao_account
         DAOCreated(AccountId, AccountId),
+        // dao_account, proposer, proposal_id
+        ProposalSubmitted(AccountId, AccountId, u128),
+        // dao_account, proposer, proposal_id
+        ProposalCanceled(AccountId, AccountId, u128),
+        // dao_account, sponsor, proposal_id, queue_index
+        ProposalSponsored(AccountId, AccountId, u128, u128),
+        // dao_account, member, is_yes, proposal_id, queue_index,
+        ProposalVoted(AccountId, AccountId, bool, u128, u128),
+        // dao_account, processer, proposal_id, queue_index, executed
+        ProposalExecuted(AccountId, AccountId, u128, u128, bool),
+        // dao_account, processer, proposal_id, queue_index, did_pass
+        ProposalProcessed(AccountId, AccountId, u128, u128, bool),
+        // dao_account, member, burn_shares
+        MemberRagequited(AccountId, AccountId, u128),
     }
 );
 
@@ -298,6 +309,7 @@ decl_module! {
             Proposals::<T>::insert(&dao_account, &proposal_id, proposal);
 
             // emit event
+            Self::deposit_event(RawEvent::ProposalSubmitted(dao_account, who, proposal_id));
 
             Ok(())
         }
@@ -332,6 +344,7 @@ decl_module! {
                     T::Currency::transfer(&escrow_id, &who, proposal.clone().tribute_offered, AllowDeath)?;
                 }
                 // emit event
+                Self::deposit_event(RawEvent::ProposalCanceled(dao_account, who, proposal_id));
 
             } else {
                 Err(Error::<T>::ProposalNotFound)?
@@ -374,6 +387,7 @@ decl_module! {
                 LastQueueIndex::<T>::insert(&dao_account, &queue_index);
 
                 // emit event
+                Self::deposit_event(RawEvent::ProposalSponsored(dao_account, who, proposal_id, queue_index));
 
             } else {
                 Err(Error::<T>::ProposalNotFound)?
@@ -441,9 +455,10 @@ decl_module! {
                     };
                     Proposals::<T>::insert(&dao_account, &proposal_id, proposal);
                 }
-                
+
                 VoteMembers::<T>::insert((&dao_account, &proposal_index), &who, ());
                 // emit event
+                Self::deposit_event(RawEvent::ProposalVoted(dao_account, who, yes, proposal_id, proposal_index));
 
             } else {
                 Err(Error::<T>::ProposalNotFound)?
@@ -530,6 +545,13 @@ decl_module! {
                     }
                 };
 
+                let new_total_shares = &dao.total_shares.checked_add(*shares_requested).ok_or(Error::<T>::NumOverflow)?;
+
+                let dao = DAOInfo {
+                    total_shares: *new_total_shares,
+                    ..dao
+                };
+
                 if let Some((collection_id, token_id)) = *tribute_nft {
                     T::NFT::_transfer_non_fungible(escrow_id.clone(), dao_account.clone(), collection_id, token_id, 1)?;
                 }
@@ -538,6 +560,7 @@ decl_module! {
                     T::Currency::transfer(&escrow_id, &dao_account, *tribute_offered, AllowDeath)?;
                 }
 
+                DAOs::<T>::insert(&dao_account, dao);
                 Members::<T>::insert(&dao_account, &proposal.applicant, &member);
 
                 if let Some(action_data) = &proposal.action {
@@ -547,6 +570,8 @@ decl_module! {
                         ..proposal.clone()
                     };
                     Proposals::<T>::insert(&dao_account, &proposal_id, &proposal);
+
+                    Self::deposit_event(RawEvent::ProposalExecuted(dao_account.clone(), who.clone(), proposal_id, proposal_index, executed));
                 }
 
 
@@ -568,6 +593,7 @@ decl_module! {
                 T::Currency::transfer(&escrow_id, &proposal.proposer, back_to_sponsor, AllowDeath)?;
 
                 // emit event
+                Self::deposit_event(RawEvent::ProposalProcessed(dao_account, who, proposal_id, proposal_index, did_pass));
             }
             else {
                 Err(Error::<T>::ProposalNotFound)?
@@ -597,7 +623,8 @@ decl_module! {
             let dao = Self::dao(&dao_account);
 
             let shares = &member.shares.checked_sub(shares_to_burn.clone()).ok_or(Error::<T>::NumOverflow)?;
-            let total_shares = &dao.total_shares.checked_sub(shares_to_burn.clone()).ok_or(Error::<T>::NumOverflow)?;
+            let new_total_shares = &dao.total_shares.checked_sub(shares_to_burn.clone()).ok_or(Error::<T>::NumOverflow)?;
+            let total_shares = &dao.total_shares;
 
             let member = Member {
                 shares: *shares,
@@ -605,23 +632,25 @@ decl_module! {
             };
 
             let dao = DAOInfo {
-                total_shares: *total_shares,
+                total_shares: *new_total_shares,
                 ..dao
             };
 
             let dao_balance: BalanceOf<T> = T::Currency::free_balance(&dao_account);
+
             let total_shares_as_balance = Self::u128_to_balance(*total_shares)?;
             let shares_to_burn_as_balance = Self::u128_to_balance(shares_to_burn)?;
 
-            let splited = &dao_balance.checked_div(&total_shares_as_balance).ok_or(Error::<T>::NumOverflow)?;
-            let withdraw_balance = splited.checked_mul(&shares_to_burn_as_balance).ok_or(Error::<T>::NumOverflow)?;
+            let splited = &dao_balance.checked_mul(&shares_to_burn_as_balance).ok_or(Error::<T>::NumOverflow)?;
+            let withdraw_balance = splited.checked_div(&total_shares_as_balance).ok_or(Error::<T>::NumOverflow)?;
 
-            T::Currency::transfer(&Self::account_id(), &who, withdraw_balance, AllowDeath)?;
+            T::Currency::transfer(&dao_account, &who, withdraw_balance, AllowDeath)?;
 
             Members::<T>::insert(&dao_account, &who, member);
             DAOs::<T>::insert(&dao_account, dao);
 
             // emit event
+            Self::deposit_event(RawEvent::MemberRagequited(dao_account, who, shares_to_burn));
 
             Ok(())
         }
@@ -676,7 +705,11 @@ impl<T: Config> Module<T> {
     }
 
     pub fn dao_escrow_id(dao_id: &DAOId) -> T::AccountId {
-        dao_id.into_sub_account(b"escrow_id")
+        // dao_id.into_sub_account(b"escrow_id")
+        let hash = BlakeTwo256::hash(&("a escrow id", dao_id).encode());
+        let id: [u8; 32] = hash.into();
+        let escrow_id = DAOId(id);
+        escrow_id.into_account()
     }
 
     pub fn proposal_id_increment(dao_account: &T::AccountId) -> Result<u128, DispatchError> {
@@ -705,6 +738,11 @@ impl<T: Config> Module<T> {
 
     pub fn u128_to_balance(input: u128) -> Result<BalanceOf<T>, DispatchError> {
         let balance = input.try_into().map_err(|_| Error::<T>::ConvertFailed)?;
+        Ok(balance)
+    }
+
+    pub fn balance_to_u128(input: BalanceOf<T>) -> Result<u128, DispatchError> {
+        let balance = TryInto::<u128>::try_into(input).map_err(|_| Error::<T>::ConvertFailed)?;
         Ok(balance)
     }
 

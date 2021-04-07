@@ -540,7 +540,7 @@ fn process_proposal() {
         assert_ok!(DaoModule::vote_proposal(
             alice.clone(),
             new_dao_account.clone(),
-            proposal_index.clone(),
+            proposal_index,
             true
         ));
 
@@ -552,9 +552,6 @@ fn process_proposal() {
             proposal_index
         ));
 
-        // let member = DaoModule::member(&new_dao_account, &alice_address);
-        // assert_eq!(member.shares, 2);
-
         let proposal = DaoModule::proposal(&new_dao_account, 0).unwrap();
 
         assert_eq!(proposal.did_pass, true);
@@ -564,6 +561,70 @@ fn process_proposal() {
     });
 }
 
+#[test]
+fn process_proposal_failed() {
+    new_test_ext().execute_with(|| {
+        let alice_address = 1;
+        let alice = Origin::signed(alice_address);
+
+        let _ = Balances::deposit_creating(&alice_address, 100);
+
+        let new_dao_account =
+            create_a_dao(&alice_address, DAO_NAME, PROPOSAL_DEPOSIT, PROPOSAL_DEPOSIT);
+
+        let shares_requested = 1;
+        let tribute_offered = 0;
+        let tribute_nft = None::<(H256, u128)>;
+        let details = Vec::new();
+        let action = Some(Vec::new());
+
+        assert_ok!(DaoModule::submit_proposal(
+            alice.clone(),
+            new_dao_account.clone(),
+            alice_address,
+            shares_requested,
+            tribute_offered,
+            tribute_nft,
+            details,
+            action
+        ));
+        assert_ok!(DaoModule::sponsor_proposal(
+            alice.clone(),
+            new_dao_account.clone(),
+            0
+        ));
+
+        let proposal_index = 0;
+
+        assert_ok!(DaoModule::vote_proposal(
+            alice.clone(),
+            new_dao_account.clone(),
+            proposal_index,
+            true
+        ));
+
+        assert_noop!(
+            DaoModule::process_proposal(alice.clone(), new_dao_account.clone(), proposal_index),
+            Error::<Test>::NotReadyToProcessed
+        );
+
+        System::set_block_number(System::block_number() + 4);
+
+        assert_noop!(
+            DaoModule::process_proposal(alice.clone(), new_dao_account.clone(), 2),
+            Error::<Test>::ProposalNotFound
+        );
+        assert_ok!(DaoModule::process_proposal(
+            alice.clone(),
+            new_dao_account.clone(),
+            proposal_index
+        ));
+        assert_noop!(
+            DaoModule::process_proposal(alice.clone(), new_dao_account.clone(), proposal_index),
+            Error::<Test>::ProcessedProposal
+        );
+    });
+}
 #[test]
 fn run_action() {
     new_test_ext().execute_with(|| {
@@ -578,11 +639,8 @@ fn run_action() {
             create_a_dao(&alice_address, DAO_NAME, PROPOSAL_DEPOSIT, PROPOSAL_DEPOSIT);
         let _ = Balances::deposit_creating(&new_dao_account, 100);
 
-        let preimage = Call::Balances(<pallet_balances::Call<Test>>::transfer(
-            bob_address,
-            10,
-        ))
-        .encode();
+        let preimage =
+            Call::Balances(<pallet_balances::Call<Test>>::transfer(bob_address, 10)).encode();
 
         let shares_requested = 1;
         let tribute_offered = 0;
@@ -611,7 +669,7 @@ fn run_action() {
         assert_ok!(DaoModule::vote_proposal(
             alice.clone(),
             new_dao_account.clone(),
-            proposal_index.clone(),
+            proposal_index,
             true
         ));
 
@@ -623,9 +681,6 @@ fn run_action() {
             proposal_index
         ));
 
-        // let member = DaoModule::member(&new_dao_account, &alice_address);
-        // assert_eq!(member.shares, 2);
-
         let proposal = DaoModule::proposal(&new_dao_account, 0).unwrap();
 
         assert_eq!(&proposal.did_pass, &true);
@@ -635,6 +690,158 @@ fn run_action() {
         assert_eq!(member.shares, 2);
 
         assert_eq!(Balances::free_balance(&bob_address), 10);
+    });
+}
 
+#[test]
+fn ragequit() {
+    new_test_ext().execute_with(|| {
+        let alice_address = 1;
+        let alice = Origin::signed(alice_address);
+
+        let _ = Balances::deposit_creating(&alice_address, 100);
+
+        let new_dao_account =
+            create_a_dao(&alice_address, DAO_NAME, PROPOSAL_DEPOSIT, PROPOSAL_DEPOSIT);
+
+        let shares_requested = 1;
+        let tribute_offered = 1;
+        // let tribute_offered = 0;
+        let tribute_nft = None::<(H256, u128)>;
+        let details = Vec::new();
+        let action = Some(Vec::new());
+
+        assert_ok!(DaoModule::submit_proposal(
+            alice.clone(),
+            new_dao_account.clone(),
+            alice_address,
+            shares_requested,
+            tribute_offered,
+            tribute_nft,
+            details,
+            action
+        ));
+
+        let escrow_id = DaoModule::escrow(&new_dao_account);
+
+        assert_eq!(Balances::free_balance(&new_dao_account), 0);
+        assert_eq!(Balances::free_balance(&escrow_id), 1);
+
+        assert_ok!(DaoModule::sponsor_proposal(
+            alice.clone(),
+            new_dao_account.clone(),
+            0
+        ));
+
+        assert_eq!(Balances::free_balance(&new_dao_account), 0);
+        assert_eq!(Balances::free_balance(&escrow_id), 2);
+        assert_eq!(Balances::free_balance(&alice_address), 98);
+
+        let proposal_index = 0;
+
+        assert_ok!(DaoModule::vote_proposal(
+            alice.clone(),
+            new_dao_account.clone(),
+            proposal_index,
+            true
+        ));
+
+        let member = DaoModule::member(&new_dao_account, &alice_address);
+        assert_eq!(member.shares, 1);
+
+        System::set_block_number(System::block_number() + 4);
+
+        assert_ok!(DaoModule::process_proposal(
+            alice.clone(),
+            new_dao_account.clone(),
+            proposal_index
+        ));
+
+        let member = DaoModule::member(&new_dao_account, &alice_address);
+        assert_eq!(member.shares, 2);
+
+        assert_eq!(Balances::free_balance(&new_dao_account), 1);
+        assert_eq!(Balances::free_balance(&escrow_id), 0);
+        assert_eq!(Balances::free_balance(&alice_address), 99);
+
+        assert_ok!(DaoModule::ragequit(
+            alice.clone(),
+            new_dao_account.clone(),
+            2
+        ));
+
+        assert_eq!(Balances::free_balance(&new_dao_account), 0);
+        assert_eq!(Balances::free_balance(&escrow_id), 0);
+        assert_eq!(Balances::free_balance(&alice_address), 100);
+
+        let member = DaoModule::member(&new_dao_account, &alice_address);
+        assert_eq!(member.shares, 0);
+    });
+}
+
+#[test]
+fn ragequit_failed() {
+    new_test_ext().execute_with(|| {
+        let alice_address = 1;
+        let alice = Origin::signed(alice_address);
+
+        let bob_address = 2;
+        let bob = Origin::signed(bob_address);
+
+        let _ = Balances::deposit_creating(&alice_address, 100);
+
+        let new_dao_account =
+            create_a_dao(&alice_address, DAO_NAME, PROPOSAL_DEPOSIT, PROPOSAL_DEPOSIT);
+
+        let shares_requested = 1;
+        let tribute_offered = 0;
+        let tribute_nft = None::<(H256, u128)>;
+        let details = Vec::new();
+        let action = Some(Vec::new());
+
+        assert_ok!(DaoModule::submit_proposal(
+            alice.clone(),
+            new_dao_account.clone(),
+            alice_address,
+            shares_requested,
+            tribute_offered,
+            tribute_nft,
+            details,
+            action
+        ));
+        assert_ok!(DaoModule::sponsor_proposal(
+            alice.clone(),
+            new_dao_account.clone(),
+            0
+        ));
+
+        assert_noop!(
+            DaoModule::ragequit(alice.clone(), new_dao_account.clone(), 1),
+            Error::<Test>::CanNotRagequit
+        );
+
+        let proposal_index = 0;
+
+        assert_ok!(DaoModule::vote_proposal(
+            alice.clone(),
+            new_dao_account.clone(),
+            proposal_index,
+            true
+        ));
+
+        assert_noop!(
+            DaoModule::ragequit(alice.clone(), new_dao_account.clone(), 1),
+            Error::<Test>::CanNotRagequit
+        );
+
+        assert_noop!(
+            DaoModule::ragequit(alice.clone(), new_dao_account.clone(), 2),
+            Error::<Test>::InsufficientShares
+        );
+
+        assert_noop!(
+            DaoModule::ragequit(bob.clone(), new_dao_account.clone(), 1),
+            Error::<Test>::PermissionDenied
+        );
     });
 }
