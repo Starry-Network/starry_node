@@ -31,7 +31,6 @@ use sp_std::{cmp::max, convert::TryInto, vec::Vec};
 use sp_core::TypeId;
 
 use pallet_nft::NFTInterface;
-use pallet_nft::TokenInfo;
 
 #[cfg(test)]
 mod mock;

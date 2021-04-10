@@ -26,6 +26,7 @@ serde = { features = ['derive'], optional = true, version = '1.0.119' }
 
 # local dependencies
 pallet-template = { path = '../pallets/template', default-features = false, version = '3.0.0' }
+pallet-exchange = { path = '../pallets/pallet-exchange', default-features = false, version = '3.0.0' }
 pallet-collection = { path = '../pallets/pallet-collection', default-features = false, version = '3.0.0' }
 pallet-nft = { path = '../pallets/pallet-nft', default-features = false, version = '3.0.0' }
 pallet-sub = { path = '../pallets/pallet-sub', default-features = false, version = '3.0.0' }

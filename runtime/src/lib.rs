@@ -42,6 +42,7 @@ use pallet_transaction_payment::CurrencyAdapter;
 /// Import the template pallet.
 pub use pallet_template;
 pub use pallet_collection;
+pub use pallet_exchange;
 pub use pallet_nft;
 pub use pallet_sub;
 pub use pallet_graph;
@@ -275,6 +276,10 @@ impl pallet_collection::Config for Runtime {
 	type RandomnessSource = RandomnessCollectiveFlip;
 }
 
+impl pallet_exchange::Config for Runtime {
+	type Event = Event;
+}
+
 impl pallet_nft::Config for Runtime {
 	type Collection = CollectionModule;
 	type Event = Event;
@@ -317,6 +322,7 @@ construct_runtime!(
 		Sudo: pallet_sudo::{Module, Call, Config<T>, Storage, Event<T>},
 		// Include the custom logic from the template pallet in the runtime.
 		TemplateModule: pallet_template::{Module, Call, Storage, Event<T>},
+		ExchangeModule: pallet_exchange::{Module, Call, Storage, Event<T>},
 		CollectionModule: pallet_collection::{Module, Call, Storage, Event<T>},
 		NFTModule: pallet_nft::{Module, Call, Storage, Event<T>},
 		GraphModule: pallet_graph::{Module, Call, Storage, Event<T>},

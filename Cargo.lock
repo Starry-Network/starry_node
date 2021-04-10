@@ -3525,6 +3525,7 @@ dependencies = [
  "pallet-aura",
  "pallet-balances",
  "pallet-collection",
+ "pallet-exchange",
  "pallet-grandpa",
  "pallet-graph",
  "pallet-nft",
@@ -3745,6 +3746,19 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
+]
+
+[[package]]
+name = "pallet-exchange"
+version = "3.0.0"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "serde",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
 ]
 
 [[package]]
