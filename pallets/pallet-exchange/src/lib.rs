@@ -13,7 +13,7 @@ use frame_support::{
 };
 use frame_system::ensure_signed;
 use sp_runtime::{
-    traits::{AccountIdConversion, SaturatedConversion, Saturating},
+    traits::{AccountIdConversion, CheckedMul, SaturatedConversion, Saturating},
     ModuleId,
 };
 
@@ -35,6 +35,7 @@ type BalanceOf<T> =
 pub struct NonFungibleOrderInfo<AccountId, Balance> {
     pub seller: AccountId,
     pub price: Balance,
+    pub amount: u128,
 }
 /// Configure the pallet by specifying the parameters and types on which it depends.
 pub trait Config: frame_system::Config {
@@ -76,8 +77,8 @@ decl_event!(
         SomethingStored(u32, AccountId),
         // collection_id, token_id, seller, amount, price
         NonFungibleOrderCreated(Hash, u128, AccountId, u128, Balance),
-        TestB(Balance),
-        TestU(u128),
+        // collection_id, token_id, buyer, amount)
+        NonFungibleSold(Hash, u128, AccountId, u128),
     }
 );
 
@@ -91,6 +92,9 @@ decl_error! {
         NumOverflow,
         ConvertFailed,
         TokenNotFound,
+        OrderNotFound,
+        AmountTooLarge,
+        AmountLessThanOne,
         PermissionDenied,
     }
 }
@@ -121,7 +125,8 @@ decl_module! {
 
             let order_info = NonFungibleOrderInfo {
                 seller: who.clone(),
-                price
+                price,
+                amount
             };
 
             NonFungibleOrders::<T>::insert((collection_id, token_id), order_info);
@@ -132,6 +137,45 @@ decl_module! {
                 who,
                 amount,
                 price,
+            ));
+
+            Ok(())
+        }
+
+        #[weight = 10_000]
+        pub fn buy_nft(origin, collection_id: T::Hash, token_id: u128, amount: u128) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+
+            ensure!(amount >= 1, Error::<T>::AmountLessThanOne);
+            ensure!(NonFungibleOrders::<T>::contains_key((collection_id, token_id)), Error::<T>::OrderNotFound);
+
+            let order = Self::nft_order((collection_id, token_id));
+
+            ensure!(&order.amount >= &amount, Error::<T>::AmountTooLarge);
+
+            let price = &order.price;
+            let b_amout = amount.saturated_into::<BalanceOf<T>>();
+            let cost = price.checked_mul(&b_amout).ok_or(Error::<T>::NumOverflow)?;
+            let left_amount = &order.amount.checked_sub(amount).ok_or(Error::<T>::NumOverflow)?;
+
+            T::Currency::transfer(&who, &order.seller, cost, AllowDeath)?;
+            T::NFT::_transfer_non_fungible(Self::account_id(), who.clone(), collection_id, token_id, amount)?;
+
+            if left_amount.clone() == 0 {
+                NonFungibleOrders::<T>::remove((collection_id, token_id));
+            } else {
+                let order = NonFungibleOrderInfo {
+                    amount: *left_amount,
+                    ..order
+                };
+                NonFungibleOrders::<T>::insert((collection_id, token_id), order);
+            }
+
+            Self::deposit_event(RawEvent::NonFungibleSold(
+                collection_id,
+                token_id,
+                who,
+                amount,
             ));
 
             Ok(())
