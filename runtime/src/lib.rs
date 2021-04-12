@@ -278,6 +278,8 @@ impl pallet_collection::Config for Runtime {
 
 impl pallet_exchange::Config for Runtime {
 	type Event = Event;
+	type Currency = Balances;
+	type NFT = NFTModule;
 }
 
 impl pallet_nft::Config for Runtime {

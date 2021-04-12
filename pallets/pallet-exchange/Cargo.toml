@@ -21,17 +21,27 @@ version = '2.0.0'
 [dependencies]
 frame-support = { default-features = false, version = '3.0.0' }
 frame-system = { default-features = false, version = '3.0.0' }
+sp-std = { default-features = false, version = '3.0.0' }
+substrate-fixed = { default-features = false, git = 'https://github.com/encointer/substrate-fixed.git', rev = "b33d186888c60f38adafcfc0ec3a21aab263aef1"}
+sp-runtime = { default-features = false, version = '3.0.0' }
+pallet-collection = { path="../pallet-collection", default-features = false, version = '3.0.0'}
+pallet-nft = { path="../pallet-nft", default-features = false, version = '3.0.0'}
 
 [dev-dependencies]
 serde = { version = "1.0.119" }
 sp-core = { default-features = false, version = '3.0.0' }
 sp-io = { default-features = false, version = '3.0.0' }
-sp-runtime = { default-features = false, version = '3.0.0' }
+pallet-balances = { default-features = false, version = '3.0.0' }
 
 [features]
 default = ['std']
 std = [
+    'sp-std/std',
+    'sp-runtime/std',
     'codec/std',
     'frame-support/std',
     'frame-system/std',
+    'pallet-balances/std',
+    'pallet-collection/std',
+    'pallet-nft/std',
 ]
