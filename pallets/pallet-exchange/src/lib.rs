@@ -77,6 +77,8 @@ decl_event!(
         SomethingStored(u32, AccountId),
         // collection_id, token_id, seller, amount, price
         NonFungibleOrderCreated(Hash, u128, AccountId, u128, Balance),
+        // collection_id, token_id
+        NonFungibleOrderCanceled(Hash, u128),
         // collection_id, token_id, buyer, amount)
         NonFungibleSold(Hash, u128, AccountId, u128),
     }
@@ -178,6 +180,29 @@ decl_module! {
                 amount,
             ));
 
+            Ok(())
+        }
+
+        #[weight = 10_000]
+        pub fn cancel_nft_order(origin, collection_id: T::Hash, token_id: u128) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+
+            ensure!(NonFungibleOrders::<T>::contains_key((collection_id, token_id)), Error::<T>::OrderNotFound);
+
+            let order = Self::nft_order((collection_id, token_id));
+
+            ensure!(&order.seller == &who, Error::<T>::PermissionDenied);
+
+            let amount = &order.amount;
+
+            T::NFT::_transfer_non_fungible(Self::account_id(), who.clone(), collection_id, token_id, *amount)?;
+            NonFungibleOrders::<T>::remove((collection_id, token_id));
+
+            Self::deposit_event(RawEvent::NonFungibleOrderCanceled(
+                collection_id,
+                token_id,
+            ));
+            
             Ok(())
         }
 
