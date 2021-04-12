@@ -5,9 +5,8 @@ use frame_support::{
     decl_error, decl_event, decl_module, decl_storage, dispatch::DispatchResult, ensure,
 };
 use frame_system::ensure_signed;
-use pallet_collection::{TokenType, CollectionInfo, CollectionInterface};
+use pallet_collection::{CollectionInfo, CollectionInterface, TokenType};
 use sp_std::vec::Vec;
-
 
 #[cfg(test)]
 mod mock;
@@ -218,7 +217,7 @@ impl<T: Config> NFTInterface<T::Hash, T::AccountId> for Module<T> {
     }
 
     fn get_balance(collection_id: &T::Hash, who: &T::AccountId) -> u128 {
-       Self::address_balances((collection_id, who))
+        Self::address_balances((collection_id, who))
     }
 
     fn get_burned_amount(collection_id: &T::Hash) -> u128 {
@@ -373,27 +372,39 @@ impl<T: Config> NFTInterface<T::Hash, T::AccountId> for Module<T> {
             .checked_add(amount)
             .ok_or(Error::<T>::NumOverflow)?;
 
-        let sender_start_idx = start_idx
-            .checked_add(amount)
-            .ok_or(Error::<T>::NumOverflow)?;
-        let receiver_end_idx = sender_start_idx
-            .checked_sub(1)
+        let receiver_start_idx = &token
+            .end_idx
+            .checked_sub(amount - 1)
             .ok_or(Error::<T>::NumOverflow)?;
 
+        let receiver_end_idx = &token.end_idx;
+
+        let is_transfer_all = receiver_start_idx.clone() == start_idx;
+
+        let sender_end_idx = if !is_transfer_all {
+            receiver_start_idx.clone().checked_sub(1).ok_or(Error::<T>::NumOverflow)?
+        } else {
+            0
+        };
+
+
         let receiver_token = TokenInfo {
-            end_idx: receiver_end_idx,
+            end_idx: *receiver_end_idx,
             owner: receiver.clone(),
             uri: token.uri.clone(),
         };
 
-        let is_transfer_all = &receiver_token.end_idx == &token.end_idx;
 
         AddressBalances::<T>::insert((collection_id, who.clone()), sender_balance);
         AddressBalances::<T>::insert((collection_id, receiver.clone()), receiver_balance);
-        Tokens::<T>::insert(collection_id, start_idx, receiver_token);
+        Tokens::<T>::insert(collection_id, receiver_start_idx, receiver_token);
 
         if !is_transfer_all {
-            Tokens::<T>::insert(collection_id, sender_start_idx, token);
+            let sender_token = TokenInfo {
+                end_idx: sender_end_idx,
+                ..token
+            };
+            Tokens::<T>::insert(collection_id, start_idx, sender_token);
         }
 
         Self::deposit_event(RawEvent::NonFungibleTokenTransferred(
@@ -522,11 +533,7 @@ impl<T: Config> NFTInterface<T::Hash, T::AccountId> for Module<T> {
         Ok(())
     }
 
-    fn _burn_fungible(
-        who: T::AccountId,
-        collection_id: T::Hash,
-        amount: u128,
-    ) -> DispatchResult {
+    fn _burn_fungible(who: T::AccountId, collection_id: T::Hash, amount: u128) -> DispatchResult {
         ensure!(amount >= 1, Error::<T>::AmountLessThanOne);
 
         ensure!(
