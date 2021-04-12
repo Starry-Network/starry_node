@@ -382,18 +382,19 @@ impl<T: Config> NFTInterface<T::Hash, T::AccountId> for Module<T> {
         let is_transfer_all = receiver_start_idx.clone() == start_idx;
 
         let sender_end_idx = if !is_transfer_all {
-            receiver_start_idx.clone().checked_sub(1).ok_or(Error::<T>::NumOverflow)?
+            receiver_start_idx
+                .clone()
+                .checked_sub(1)
+                .ok_or(Error::<T>::NumOverflow)?
         } else {
             0
         };
-
 
         let receiver_token = TokenInfo {
             end_idx: *receiver_end_idx,
             owner: receiver.clone(),
             uri: token.uri.clone(),
         };
-
 
         AddressBalances::<T>::insert((collection_id, who.clone()), sender_balance);
         AddressBalances::<T>::insert((collection_id, receiver.clone()), receiver_balance);
@@ -503,24 +504,42 @@ impl<T: Config> NFTInterface<T::Hash, T::AccountId> for Module<T> {
         let balance = Self::address_balances((collection_id, &who))
             .checked_sub(amount)
             .ok_or(Error::<T>::NumOverflow)?;
-        let new_start_idx = start_idx
-            .checked_add(amount)
+
+        let burn_start_idx = &token
+            .end_idx
+            .checked_sub(amount - 1)
             .ok_or(Error::<T>::NumOverflow)?;
+
+        let is_burn_all = burn_start_idx.clone() == start_idx;
+
+        let new_end_idx = if !is_burn_all {
+            burn_start_idx
+                .clone()
+                .checked_sub(1)
+                .ok_or(Error::<T>::NumOverflow)?
+        } else {
+            0
+        };
 
         let burn_amount = Self::burned_tokens(collection_id)
             .checked_add(amount)
             .ok_or(Error::<T>::NumOverflow)?;
-        let is_burn_all = &new_start_idx == &token.end_idx;
 
         let new_total_supply = T::Collection::sub_total_supply(collection_id, amount)?;
 
-        AddressBalances::<T>::insert((collection_id, who.clone()), balance);
-        Tokens::<T>::remove(collection_id, start_idx);
-        BurnedTokens::<T>::insert(collection_id, burn_amount);
-
-        if !is_burn_all {
-            Tokens::<T>::insert(collection_id, new_start_idx, token);
+        if is_burn_all {
+            Tokens::<T>::remove(collection_id, start_idx);
+        } else {
+            let token = TokenInfo {
+                end_idx: new_end_idx,
+                ..token
+            };
+            Tokens::<T>::insert(collection_id, start_idx, token);
         }
+
+        AddressBalances::<T>::insert((collection_id, who.clone()), balance);
+        BurnedTokens::<T>::insert(collection_id, burn_amount);
+        
         // [sender, amount, collection_id, start_idx]
         Self::deposit_event(RawEvent::NonFungibleTokenBurned(
             who,

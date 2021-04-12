@@ -164,9 +164,11 @@ fn transfer_non_fungible_success() {
         .unwrap();
         let last_token_id = NFTModule::last_token_id(collection_id);
         let start_idx = mint_amount - last_token_id - 1;
+        assert_eq!(start_idx.clone(), 0);
         let token = NFTModule::tokens(collection_id, start_idx);
 
         assert_eq!(token.owner, alice_address);
+        
         assert_eq!(
             NFTModule::address_balances((collection_id, alice_address)),
             mint_amount
@@ -190,9 +192,12 @@ fn transfer_non_fungible_success() {
             transfer_amount
         );
 
-        let alice_start_idx = last_token_id - transfer_amount;
-        let bob_nfts = NFTModule::tokens(collection_id, start_idx);
-        let alice_nfts = NFTModule::tokens(collection_id, alice_start_idx);
+        // let alice_start_idx = last_token_id - transfer_amount;
+        let alice_nfts = NFTModule::tokens(collection_id, start_idx);
+        let bob_start_idx = last_token_id - (transfer_amount - 1);
+        // assert_eq!(bob_start_idx, 2);
+
+        let bob_nfts = NFTModule::tokens(collection_id, bob_start_idx);
 
         assert_eq!(bob_nfts.owner, bob_address);
         assert_eq!(alice_nfts.owner, alice_address);
@@ -442,6 +447,10 @@ fn burn_non_fungible_success() {
         let collection = CollectionModule::collections(collection_id);
         assert_eq!(collection.total_supply, mint_amount - burn_amount);
         assert_eq!(NFTModule::burned_tokens(collection_id), burn_amount);
+
+        let alice_nfts = NFTModule::tokens(collection_id, start_idx);
+        let end_idx = last_token_id - (burn_amount - 1) -1;
+        assert_eq!(alice_nfts.end_idx, end_idx);
     });
 }
 
