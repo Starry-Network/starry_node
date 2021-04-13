@@ -31,7 +31,9 @@ type BalanceOf<T> =
     <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 #[derive(Encode, Decode, Default, Clone, PartialEq)]
-pub struct NonFungibleOrderInfo<AccountId, Balance> {
+pub struct NonFungibleOrderInfo<Hash, AccountId, Balance> {
+    pub collection_id: Hash,
+    pub start_idx: u128,
     pub seller: AccountId,
     pub price: Balance,
     pub amount: u128,
@@ -62,7 +64,8 @@ decl_storage! {
 
     trait Store for Module<T: Config> as ExchangeModule {
         // (collection id, token id)  => NonFungibleOrderInfo
-        NonFungibleOrders get(fn nft_order): map hasher(blake2_128_concat) (T::Hash, u128) => NonFungibleOrderInfo<T::AccountId, BalanceOf<T>>;
+        NextNonFungibleOrderId get(fn next_nft_order_id): u128 = 0;
+        NonFungibleOrders get(fn nft_order): map hasher(blake2_128_concat) u128 => NonFungibleOrderInfo<T::Hash, T::AccountId, BalanceOf<T>>;
         // (collection id, seller_account) => pool
         SemiFungiblePools get (fn semi_fungible_pool): map hasher(blake2_128_concat) (T::Hash, T::AccountId) => SemiFungiblePoolInfo<T::AccountId, BalanceOf<T>, T::BlockNumber>;
     }
@@ -78,12 +81,12 @@ decl_event!(
             <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance,
     {
         SomethingStored(u32, AccountId),
-        // collection_id, token_id, seller, amount, price
-        NonFungibleOrderCreated(Hash, u128, AccountId, u128, Balance),
-        // collection_id, token_id
-        NonFungibleOrderCanceled(Hash, u128),
-        // collection_id, token_id, buyer, amount)
-        NonFungibleSold(Hash, u128, AccountId, u128),
+        // collection_id, token_id, order_id, seller, amount, price
+        NonFungibleOrderCreated(Hash, u128, u128, AccountId, u128, Balance),
+        // nft_order_id
+        NonFungibleOrderCanceled(u128),
+        // collection_id, token_id, order_id, buyer, amount)
+        NonFungibleSold(Hash, u128, u128, AccountId, u128),
         // collection_id, seller, amount, reverse_ratio, m, end_time
         SemiFungiblePoolCreated(Hash, AccountId, u128, u128, u128, BlockNumber),
         // collection_id, seller
@@ -130,19 +133,26 @@ decl_module! {
 
             ensure!(&token.owner == &who, Error::<T>::PermissionDenied);
 
+            let nft_order_id = Self::next_nft_order_id();
+            let next_nft_order_id = nft_order_id.checked_add(1).ok_or(Error::<T>::NumOverflow)?;
+
             T::NFT::_transfer_non_fungible(who.clone(), Self::account_id(), collection_id, token_id, amount)?;
 
             let order_info = NonFungibleOrderInfo {
+                collection_id: collection_id.clone(),
+                start_idx: token_id,
                 seller: who.clone(),
                 price,
                 amount
             };
 
-            NonFungibleOrders::<T>::insert((collection_id, token_id), order_info);
+            NonFungibleOrders::<T>::insert(nft_order_id, order_info);
+            NextNonFungibleOrderId::put(next_nft_order_id);
 
             Self::deposit_event(RawEvent::NonFungibleOrderCreated(
                 collection_id,
                 token_id,
+                nft_order_id,
                 who,
                 amount,
                 price,
@@ -152,13 +162,13 @@ decl_module! {
         }
 
         #[weight = 10_000]
-        pub fn buy_nft(origin, collection_id: T::Hash, token_id: u128, amount: u128) -> DispatchResult {
+        pub fn buy_nft(origin, order_id: u128, amount: u128) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
             ensure!(amount >= 1, Error::<T>::AmountLessThanOne);
-            ensure!(NonFungibleOrders::<T>::contains_key((collection_id, token_id)), Error::<T>::OrderNotFound);
+            ensure!(NonFungibleOrders::<T>::contains_key(order_id), Error::<T>::OrderNotFound);
 
-            let order = Self::nft_order((collection_id, token_id));
+            let order = Self::nft_order(order_id);
 
             ensure!(&order.amount >= &amount, Error::<T>::AmountTooLarge);
 
@@ -167,22 +177,26 @@ decl_module! {
             let cost = price.checked_mul(&b_amout).ok_or(Error::<T>::NumOverflow)?;
             let left_amount = &order.amount.checked_sub(amount).ok_or(Error::<T>::NumOverflow)?;
 
-            T::Currency::transfer(&who, &order.seller, cost, AllowDeath)?;
-            T::NFT::_transfer_non_fungible(Self::account_id(), who.clone(), collection_id, token_id, amount)?;
+            let collection_id = &order.collection_id;
+            let token_id = &order.start_idx;
 
-            if left_amount.clone() == 0 {
-                NonFungibleOrders::<T>::remove((collection_id, token_id));
-            } else {
-                let order = NonFungibleOrderInfo {
-                    amount: *left_amount,
-                    ..order
-                };
-                NonFungibleOrders::<T>::insert((collection_id, token_id), order);
-            }
+            T::Currency::transfer(&who, &order.seller, cost, AllowDeath)?;
+            T::NFT::_transfer_non_fungible(Self::account_id(), who.clone(), *collection_id, *token_id, amount)?;
+
+            let sended_token = T::NFT::get_nft_token(collection_id.clone(), token_id.clone());
+            let start_idx = sended_token.end_idx.checked_add(1).ok_or(Error::<T>::NumOverflow)?;
+
+            let order = NonFungibleOrderInfo {
+                amount: *left_amount,
+                start_idx,
+                ..order
+            };
+            NonFungibleOrders::<T>::insert(order_id, order);
 
             Self::deposit_event(RawEvent::NonFungibleSold(
-                collection_id,
-                token_id,
+                *collection_id,
+                *token_id,
+                order_id,
                 who,
                 amount,
             ));
@@ -191,24 +205,23 @@ decl_module! {
         }
 
         #[weight = 10_000]
-        pub fn cancel_nft_order(origin, collection_id: T::Hash, token_id: u128) -> DispatchResult {
+        pub fn cancel_nft_order(origin, order_id: u128) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
-            ensure!(NonFungibleOrders::<T>::contains_key((collection_id, token_id)), Error::<T>::OrderNotFound);
+            ensure!(NonFungibleOrders::<T>::contains_key(order_id), Error::<T>::OrderNotFound);
 
-            let order = Self::nft_order((collection_id, token_id));
+            let order = Self::nft_order(order_id);
 
             ensure!(&order.seller == &who, Error::<T>::PermissionDenied);
 
             let amount = &order.amount;
+            let collection_id = &order.collection_id;
+            let token_id = &order.start_idx;
 
-            T::NFT::_transfer_non_fungible(Self::account_id(), who.clone(), collection_id, token_id, *amount)?;
-            NonFungibleOrders::<T>::remove((collection_id, token_id));
+            T::NFT::_transfer_non_fungible(Self::account_id(), who.clone(), *collection_id, *token_id, *amount)?;
+            NonFungibleOrders::<T>::remove(order_id);
 
-            Self::deposit_event(RawEvent::NonFungibleOrderCanceled(
-                collection_id,
-                token_id,
-            ));
+            Self::deposit_event(RawEvent::NonFungibleOrderCanceled(order_id));
 
             Ok(())
         }
