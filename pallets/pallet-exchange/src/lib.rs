@@ -11,14 +11,14 @@ use frame_support::{
     ensure,
     traits::Get,
 };
-use frame_system::ensure_signed;
+use frame_system::{self as system, ensure_signed};
+use pallet_collection::{CollectionInterface, TokenType};
+use pallet_nft::NFTInterface;
 use sp_runtime::{
-    traits::{AccountIdConversion, CheckedMul, SaturatedConversion, Saturating},
+    traits::{AccountIdConversion, CheckedAdd, CheckedMul, SaturatedConversion, Saturating, Zero},
     ModuleId,
 };
-
-use pallet_nft::NFTInterface;
-use substrate_fixed::{transcendental::pow, types::I64F64};
+use substrate_fixed::{transcendental::pow, types::I32F32, types::I64F64};
 
 #[cfg(test)]
 mod mock;
@@ -37,43 +37,47 @@ pub struct NonFungibleOrderInfo<AccountId, Balance> {
     pub price: Balance,
     pub amount: u128,
 }
+
+#[derive(Encode, Decode, Default, Clone, PartialEq)]
+pub struct SemiFungiblePoolInfo<AccountId, Balance, BlockNumber> {
+    pub seller: AccountId,
+    pub supply: u128,
+    pub m: u128,
+    pub sold: u128,
+    pub reverse_ratio: u128,
+    pub pool_balance: Balance,
+    pub end_time: BlockNumber,
+    // pub start_block_number: BlockNumber,
+    // pub duration: BlockNumber,
+}
 /// Configure the pallet by specifying the parameters and types on which it depends.
 pub trait Config: frame_system::Config {
     /// Because this pallet emits events, it depends on the runtime's definition of an event.
     type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
     type Currency: Currency<Self::AccountId>;
+    type Collection: CollectionInterface<Self::Hash, Self::AccountId>;
     type NFT: NFTInterface<Self::Hash, Self::AccountId>;
 }
 
-// The pallet's runtime storage items.
-// https://substrate.dev/docs/en/knowledgebase/runtime/storage
 decl_storage! {
-    // A unique name is used to ensure that the pallet's storage items are isolated.
-    // This name may be updated, but each pallet in the runtime must use a unique name.
-    // ---------------------------------vvvvvvvvvvvvvv
+
     trait Store for Module<T: Config> as ExchangeModule {
-        // Learn more about declaring storage items:
-        // https://substrate.dev/docs/en/knowledgebase/runtime/storage#declaring-storage-items
-        Something get(fn something): Option<u32>;
         // (collection id, token id)  => NonFungibleOrderInfo
         NonFungibleOrders get(fn nft_order): map hasher(blake2_128_concat) (T::Hash, u128) => NonFungibleOrderInfo<T::AccountId, BalanceOf<T>>;
-        // sub nft collection id => ratio
-
+        // (collection id, seller_account) => pool
+        SemiFungiblePools get (fn semi_fungible_pool): map hasher(blake2_128_concat) (T::Hash, T::AccountId) => SemiFungiblePoolInfo<T::AccountId, BalanceOf<T>, T::BlockNumber>;
     }
 }
 
-// Pallets use events to inform users when important changes are made.
-// https://substrate.dev/docs/en/knowledgebase/runtime/events
 decl_event!(
     pub enum Event<T>
     where
         AccountId = <T as frame_system::Config>::AccountId,
         Hash = <T as frame_system::Config>::Hash,
+        BlockNumber = <T as frame_system::Config>::BlockNumber,
         Balance =
             <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance,
     {
-        /// Event documentation should end with an array that provides descriptive names for event
-        /// parameters. [something, who]
         SomethingStored(u32, AccountId),
         // collection_id, token_id, seller, amount, price
         NonFungibleOrderCreated(Hash, u128, AccountId, u128, Balance),
@@ -81,37 +85,35 @@ decl_event!(
         NonFungibleOrderCanceled(Hash, u128),
         // collection_id, token_id, buyer, amount)
         NonFungibleSold(Hash, u128, AccountId, u128),
+        // collection_id, seller, amount, reverse_ratio, m, end_time
+        SemiFungiblePoolCreated(Hash, AccountId, u128, u128, u128, BlockNumber),
+        // collection_id, seller, buyer, amount, cost
+        SemiFungibleSold(Hash, AccountId, AccountId, u128, Balance),
     }
 );
 
-// Errors inform users that something went wrong.
 decl_error! {
     pub enum Error for Module<T: Config> {
-        /// Error names should be descriptive.
-        NoneValue,
-        /// Errors should have helpful documentation associated with them.
-        StorageOverflow,
         NumOverflow,
         ConvertFailed,
+        CollectionNotFound,
         TokenNotFound,
         OrderNotFound,
+        PoolNotFound,
+        PoolExisted,
         AmountTooLarge,
         AmountLessThanOne,
         PermissionDenied,
+        WrongTokenType,
+        ExpiredSoldTime
     }
 }
 
-// Dispatchable functions allows users to interact with the pallet and invoke state changes.
-// These functions materialize as "extrinsics", which are often compared to transactions.
-// Dispatchable functions must be annotated with a weight and must return a DispatchResult.
 decl_module! {
     pub struct Module<T: Config> for enum Call where origin: T::Origin {
-        // Errors must be initialized if they are used by the pallet.
         type Error = Error<T>;
 
-        // Events must be initialized if they are used by the pallet.
         fn deposit_event() = default;
-
 
         #[weight = 10_000]
         pub fn sell_nft(origin, collection_id: T::Hash, token_id: u128, amount: u128, price: BalanceOf<T>) -> DispatchResult {
@@ -202,10 +204,106 @@ decl_module! {
                 collection_id,
                 token_id,
             ));
-            
+
             Ok(())
         }
 
+        #[weight = 10_000]
+        pub fn create_semi_token_pool(origin, collection_id: T::Hash, amount: u128, reverse_ratio: u128, m: u128, duration: T::BlockNumber) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+            
+            ensure!(amount >= 1, Error::<T>::AmountLessThanOne);
+            // if pool existed, withdraw and delete pool
+            ensure!(!SemiFungiblePools::<T>::contains_key((&collection_id, &who)), Error::<T>::PoolExisted);
+            ensure!(T::Collection::collection_exist(collection_id.clone()), Error::<T>::CollectionNotFound);
+            ensure!(T::NFT::get_balance(&collection_id, &who) >= amount, Error::<T>::AmountTooLarge);
+
+            let collection = T::Collection::get_collection(collection_id.clone());
+            if let Some(token_type) = collection.token_type {
+                ensure!(
+                    token_type == TokenType::Fungible,
+                    Error::<T>::WrongTokenType
+                );
+            }
+
+            let block_number = <system::Pallet<T>>::block_number();
+            let end_time = block_number.checked_add(&duration).ok_or(Error::<T>::NumOverflow)?;
+
+            let pool = SemiFungiblePoolInfo {
+                m,
+                reverse_ratio,
+                end_time,
+                sold: 0,
+                seller: who.clone(),
+                supply: amount,
+                pool_balance: 0_u128.saturated_into::<BalanceOf<T>>(),
+            };
+
+            T::NFT::_transfer_fungible(who.clone(), Self::account_id(), collection_id.clone(), amount)?;
+            SemiFungiblePools::<T>::insert((&collection_id, &who), pool);
+
+            Self::deposit_event(RawEvent::SemiFungiblePoolCreated(
+                collection_id,
+                who,
+                amount,
+                reverse_ratio,
+                m,
+                end_time
+            ));
+
+            Ok(())
+        }
+
+        #[weight = 10_000]
+        pub fn buy_semi_token(origin, collection_id: T::Hash, seller: T::AccountId, amount: u128) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+
+            ensure!(SemiFungiblePools::<T>::contains_key((&collection_id, &seller)), Error::<T>::PoolNotFound);
+
+            let pool = Self::semi_fungible_pool((&collection_id, &seller));
+
+            let reverse_ratio = &pool.reverse_ratio;
+            let total_supply = &pool.sold;
+
+            ensure!(&amount <= &pool.supply, Error::<T>::AmountTooLarge);
+
+            let block_number = <system::Pallet<T>>::block_number();
+            ensure!(&block_number <= &pool.end_time, Error::<T>::ExpiredSoldTime);
+
+            let cost = if &pool.sold == & 0 {
+                let m = &pool.m;
+                Self::first_buy_cost(*reverse_ratio, *m, amount)?
+             } else {
+                let pool_balance = &pool.pool_balance;
+                Self::buy_cost(*pool_balance, amount, *total_supply, *reverse_ratio)?
+            };
+
+            let cost = cost.saturated_into::<BalanceOf<T>>();
+
+            let sold = &pool.sold.checked_add(amount).ok_or(Error::<T>::NumOverflow)?;
+            let supply = &pool.supply.checked_sub(amount).ok_or(Error::<T>::NumOverflow)?;
+
+            let pool_balance = pool.pool_balance.clone().checked_add(&cost).ok_or(Error::<T>::NumOverflow)?;
+
+            let pool = SemiFungiblePoolInfo {
+                sold: *sold,
+                supply: *supply,
+                pool_balance,
+                ..pool
+            };
+
+            SemiFungiblePools::<T>::insert((&collection_id, &seller), pool);
+
+            Self::deposit_event(RawEvent::SemiFungibleSold(
+                collection_id,
+                seller,
+                who,
+                amount,
+                cost
+            ));
+
+            Ok(())
+        }
 
 
     }
@@ -240,6 +338,36 @@ impl<T: Config> Module<T> {
         Ok(result)
     }
 
+    fn to_fixed2(operand: I64F64) -> Result<I64F64, DispatchError> {
+        let hundred = I64F64::from_num(100);
+        let r = operand
+            .checked_mul(hundred)
+            .ok_or(Error::<T>::NumOverflow)?;
+
+        Ok(r.round() / 100)
+    }
+
+    fn first_buy_cost(reverse_ratio: u128, m: u128, amount: u128) -> Result<u128, DispatchError> {
+        // r  = reserve_ratio / max_weight
+        // p = r * m * amount ** (1/r)
+        let max_weight = I64F64::from_num(1000000);
+        let m = I64F64::from_num(m);
+        let one = I64F64::from_num(1);
+        let amount = I64F64::from_num(amount);
+
+        let r: I64F64 = I64F64::from_num(reverse_ratio) / max_weight;
+
+        let exponent: I64F64 = I64F64::from_num(max_weight) / I64F64::from_num(reverse_ratio);
+        let operand: I64F64 = pow(amount, exponent).map_err(|_| Error::<T>::NumOverflow)?;
+
+        let operand = operand.checked_mul(m).ok_or(Error::<T>::NumOverflow)?;
+        let p = operand.checked_mul(r).ok_or(Error::<T>::NumOverflow)?;
+
+        let p = Self::to_fixed2(p)?;
+
+        Ok(p.ceil().to_num::<u128>())
+    }
+
     // buy: p =  poolBalance * ((1 + amount / totalSupply) ** (1 / (reserveRatio)) - 1)
     fn buy_cost(
         pool_balance: BalanceOf<T>,
@@ -258,6 +386,7 @@ impl<T: Config> Module<T> {
         let p = I64F64::from_num(pool_balance)
             .checked_mul(p)
             .ok_or(Error::<T>::NumOverflow)?;
+        let p = Self::to_fixed2(p)?;
         Ok(p.ceil().to_num::<u128>())
     }
 

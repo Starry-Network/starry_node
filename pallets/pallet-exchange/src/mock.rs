@@ -82,6 +82,7 @@ impl pallet_nft::Config for Test {
 impl pallet_template::Config for Test {
     type Event = Event;
     type Currency = Balances;
+    type Collection = CollectionModule;
     type NFT = NFTModule;
 }
 
