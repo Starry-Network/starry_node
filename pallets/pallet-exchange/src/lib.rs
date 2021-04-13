@@ -9,16 +9,15 @@ use frame_support::{
     decl_error, decl_event, decl_module, decl_storage,
     dispatch::{DispatchError, DispatchResult},
     ensure,
-    traits::Get,
 };
 use frame_system::{self as system, ensure_signed};
 use pallet_collection::{CollectionInterface, TokenType};
 use pallet_nft::NFTInterface;
 use sp_runtime::{
-    traits::{AccountIdConversion, CheckedAdd, CheckedMul, SaturatedConversion, Saturating, Zero},
+    traits::{AccountIdConversion, CheckedAdd, CheckedMul, CheckedSub, SaturatedConversion},
     ModuleId,
 };
-use substrate_fixed::{transcendental::pow, types::I32F32, types::I64F64};
+use substrate_fixed::{transcendental::pow, types::I64F64};
 
 #[cfg(test)]
 mod mock;
@@ -87,8 +86,13 @@ decl_event!(
         NonFungibleSold(Hash, u128, AccountId, u128),
         // collection_id, seller, amount, reverse_ratio, m, end_time
         SemiFungiblePoolCreated(Hash, AccountId, u128, u128, u128, BlockNumber),
-        // collection_id, seller, buyer, amount, cost
+        // collection_id, seller
+        SemiFungiblePoolWithdrew(Hash, AccountId),
+        // collection_id, pool_seller, token_buyer, amount, cost
+        SemiFungibleBought(Hash, AccountId, AccountId, u128, Balance),
+        // collection_id, pool_seller, token_seller, amount, receive
         SemiFungibleSold(Hash, AccountId, AccountId, u128, Balance),
+        //
     }
 );
 
@@ -105,7 +109,8 @@ decl_error! {
         AmountLessThanOne,
         PermissionDenied,
         WrongTokenType,
-        ExpiredSoldTime
+        ExpiredSoldTime,
+        CanNotWithdraw,
     }
 }
 
@@ -211,7 +216,7 @@ decl_module! {
         #[weight = 10_000]
         pub fn create_semi_token_pool(origin, collection_id: T::Hash, amount: u128, reverse_ratio: u128, m: u128, duration: T::BlockNumber) -> DispatchResult {
             let who = ensure_signed(origin)?;
-            
+
             ensure!(amount >= 1, Error::<T>::AmountLessThanOne);
             // if pool existed, withdraw and delete pool
             ensure!(!SemiFungiblePools::<T>::contains_key((&collection_id, &who)), Error::<T>::PoolExisted);
@@ -262,13 +267,13 @@ decl_module! {
 
             let pool = Self::semi_fungible_pool((&collection_id, &seller));
 
-            let reverse_ratio = &pool.reverse_ratio;
-            let total_supply = &pool.sold;
-
             ensure!(&amount <= &pool.supply, Error::<T>::AmountTooLarge);
 
             let block_number = <system::Pallet<T>>::block_number();
             ensure!(&block_number <= &pool.end_time, Error::<T>::ExpiredSoldTime);
+
+            let reverse_ratio = &pool.reverse_ratio;
+            let total_supply = &pool.sold;
 
             let cost = if &pool.sold == & 0 {
                 let m = &pool.m;
@@ -293,9 +298,11 @@ decl_module! {
             };
 
             T::Currency::transfer(&who, &Self::account_id(), cost, AllowDeath)?;
+            T::NFT::_transfer_fungible(Self::account_id(), who.clone(), collection_id.clone(), amount)?;
+
             SemiFungiblePools::<T>::insert((&collection_id, &seller), pool);
 
-            Self::deposit_event(RawEvent::SemiFungibleSold(
+            Self::deposit_event(RawEvent::SemiFungibleBought(
                 collection_id,
                 seller,
                 who,
@@ -306,7 +313,83 @@ decl_module! {
             Ok(())
         }
 
+        #[weight = 10_000]
+        pub fn sell_semi_token(origin, collection_id: T::Hash, seller: T::AccountId, amount: u128) -> DispatchResult {
+            let who = ensure_signed(origin)?;
 
+            let pool_id = (&collection_id, &seller);
+            ensure!(SemiFungiblePools::<T>::contains_key(pool_id), Error::<T>::PoolNotFound);
+
+            let pool = Self::semi_fungible_pool((&collection_id, &seller));
+
+            // pool.sold should large than 0
+            ensure!(amount >= 1, Error::<T>::AmountLessThanOne);
+            ensure!(&pool.sold >= &amount, Error::<T>::AmountTooLarge);
+
+            let block_number = <system::Pallet<T>>::block_number();
+            ensure!(&block_number <= &pool.end_time, Error::<T>::ExpiredSoldTime);
+
+            let reverse_ratio = &pool.reverse_ratio;
+            let total_supply = &pool.sold;
+            let pool_balance = &pool.pool_balance;
+
+            let receive = Self::sell_receive(*pool_balance, amount, *total_supply, *reverse_ratio)?;
+            let receive = receive.saturated_into::<BalanceOf<T>>();
+
+            let new_pool_balance = pool.pool_balance.clone().checked_sub(&receive).ok_or(Error::<T>::NumOverflow)?;
+            let sold = &pool.sold.checked_sub(amount).ok_or(Error::<T>::NumOverflow)?;
+            let supply = &pool.supply.checked_add(amount).ok_or(Error::<T>::NumOverflow)?;
+
+            let pool = SemiFungiblePoolInfo {
+                sold: *sold,
+                supply: *supply,
+                pool_balance: new_pool_balance,
+                ..pool
+            };
+
+            T::NFT::_transfer_fungible(who.clone(), Self::account_id(), collection_id.clone(), amount)?;
+            T::Currency::transfer(&Self::account_id(), &who, receive, AllowDeath)?;
+
+            SemiFungiblePools::<T>::insert(pool_id, pool);
+
+            Self::deposit_event(RawEvent::SemiFungibleSold(
+                collection_id,
+                seller,
+                who,
+                amount,
+                receive
+            ));
+
+            Ok(())
+        }
+
+        #[weight = 10_000]
+        pub fn withdraw_pool(origin, collection_id: T::Hash, seller: T::AccountId) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+
+            let pool_id = (&collection_id, &seller);
+            ensure!(SemiFungiblePools::<T>::contains_key(pool_id), Error::<T>::PoolNotFound);
+
+            let pool = Self::semi_fungible_pool((&collection_id, &seller));
+            ensure!(&pool.seller == &who, Error::<T>::PermissionDenied);
+
+            let block_number = <system::Pallet<T>>::block_number();
+            ensure!(&block_number > &pool.end_time, Error::<T>::CanNotWithdraw);
+
+            let pool_balance = &pool.pool_balance;
+            let supply = &pool.supply;
+
+            SemiFungiblePools::<T>::remove(pool_id);
+            T::NFT::_transfer_fungible(Self::account_id(), who.clone(), collection_id.clone(), *supply)?;
+            T::Currency::transfer(&Self::account_id(), &who, *pool_balance, AllowDeath)?;
+
+            Self::deposit_event(RawEvent::SemiFungiblePoolWithdrew(
+                collection_id,
+                seller,
+            ));
+
+            Ok(())
+        }
     }
 }
 
@@ -353,7 +436,6 @@ impl<T: Config> Module<T> {
         // p = r * m * amount ** (1/r)
         let max_weight = I64F64::from_num(1000000);
         let m = I64F64::from_num(m);
-        let one = I64F64::from_num(1);
         let amount = I64F64::from_num(amount);
 
         let r: I64F64 = I64F64::from_num(reverse_ratio) / max_weight;

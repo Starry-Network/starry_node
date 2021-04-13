@@ -1,7 +1,6 @@
 use crate::{mock::*, Error};
 use frame_support::{assert_noop, assert_ok};
-use sp_runtime::traits::{SaturatedConversion, Saturating};
-use substrate_fixed::{transcendental::pow, types::I64F64};
+use sp_runtime::traits::{SaturatedConversion};
 
 #[test]
 fn it_works_for_default_value() {
