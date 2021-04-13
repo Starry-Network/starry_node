@@ -292,6 +292,7 @@ decl_module! {
                 ..pool
             };
 
+            T::Currency::transfer(&who, &Self::account_id(), cost, AllowDeath)?;
             SemiFungiblePools::<T>::insert((&collection_id, &seller), pool);
 
             Self::deposit_event(RawEvent::SemiFungibleSold(
