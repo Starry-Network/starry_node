@@ -86,6 +86,8 @@ impl pallet_template::Config for Test {
     type NFT = NFTModule;
 }
 
+pub type BlockNumber = u64;
+
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
     system::GenesisConfig::default()

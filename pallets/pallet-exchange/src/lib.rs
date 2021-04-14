@@ -110,6 +110,8 @@ decl_error! {
         PoolExisted,
         AmountTooLarge,
         AmountLessThanOne,
+        ReverseRatioLessThanOne,
+        MLessThanOne,
         PermissionDenied,
         WrongTokenType,
         ExpiredSoldTime,
@@ -229,6 +231,9 @@ decl_module! {
         #[weight = 10_000]
         pub fn create_semi_token_pool(origin, collection_id: T::Hash, amount: u128, reverse_ratio: u128, m: u128, duration: T::BlockNumber) -> DispatchResult {
             let who = ensure_signed(origin)?;
+
+            ensure!(reverse_ratio >=1, Error::<T>::ReverseRatioLessThanOne);
+            ensure!(m >=1, Error::<T>::MLessThanOne);
 
             ensure!(amount >= 1, Error::<T>::AmountLessThanOne);
             // if pool existed, withdraw and delete pool
@@ -377,13 +382,13 @@ decl_module! {
         }
 
         #[weight = 10_000]
-        pub fn withdraw_pool(origin, collection_id: T::Hash, seller: T::AccountId) -> DispatchResult {
+        pub fn withdraw_pool(origin, collection_id: T::Hash) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
-            let pool_id = (&collection_id, &seller);
+            let pool_id = (&collection_id, &who);
             ensure!(SemiFungiblePools::<T>::contains_key(pool_id), Error::<T>::PoolNotFound);
 
-            let pool = Self::semi_fungible_pool((&collection_id, &seller));
+            let pool = Self::semi_fungible_pool((&collection_id, &who));
             ensure!(&pool.seller == &who, Error::<T>::PermissionDenied);
 
             let block_number = <system::Pallet<T>>::block_number();
@@ -398,7 +403,7 @@ decl_module! {
 
             Self::deposit_event(RawEvent::SemiFungiblePoolWithdrew(
                 collection_id,
-                seller,
+                who,
             ));
 
             Ok(())
