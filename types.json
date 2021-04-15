@@ -1,30 +1,32 @@
 {
-    "Address": "MultiAddress",
-    "LookupSource": "MultiAddress",
-    "PerDispatchClassU32": {
-        "normal": "u32",
-        "operational": "u32",
-        "mandatory": "u32"
-    },
-    "BlockLength": {
-        "max": "PerDispatchClassU32"
-    },
-    "CollectionInfo": {
-        "owner": "AccountId",
-        "uri": "Vec<u8>",
-        "total_supply": "u128"
-    },
-    "TokenInfo": {
-        "end_idx": "u128",
-	    "owner": "AccountId",
-	    "uri": "Vec<u8>"
-    },
-    "CollectionId": "u128",
-    "StartIdx": "u128",
-    "SubStartIdx": "u128",
-    "MintAmount": "u128",
-    "Balance": "u128",
-    "SubTokenId": "u128",
-
-    "SubTokenInfo": {}
+  "TokenType": { "_enum": ["NonFungible", "Fungible"] },
+  "CollectionInfo": {
+    "owner": "AccountId",
+    "uri": "Vec<u8>",
+    "total_supply": "u128",
+    "token_type": "TokenType"
+  },
+  "TokenInfo": {
+    "end_idx": "u128",
+    "owner": "AccountId",
+    "uri": "Vec<u8>"
+  },
+  "DAOInfo": {
+    "account_id": "AccountId",
+    "escrow_id": "AccountId",
+    "details": "Vec<u8>",
+    "period_duration": "u128",
+    "voting_period": "u128",
+    "grace_period": "u128",
+    "metadata": "Vec<u8>",
+    "total_shares": "u128",
+    "summoning_time": "BlockNumber",
+    "dilution_bound": "u128",
+    "proposal_deposit": "Balance",
+    "processing_reward": "Balance"
+  },
+  "Member": {
+      "shares": "u128",
+      "highest_index_yes_vote": "u128"
+  }
 }

@@ -94,7 +94,7 @@ impl pallet_dao::Config for Test {
     type NFT = NFTModule;
 }
 
-pub const DAO_NAME: Vec<u8> = Vec::new();
+pub const DAO_DETAILS: Vec<u8> = Vec::new();
 pub const PERIOD_DURATION: u128 = 2;
 pub const WRONG_PERIOD_DURATION: u128 = 0;
 pub const VOTING_PERIOD: u128 = 1;
