@@ -50,22 +50,22 @@ decl_event!(
         AccountId = <T as frame_system::Config>::AccountId,
         Hash = <T as frame_system::Config>::Hash,
     {
-        // [receiver, collection_id, start_idx, end_idx, collection_total_supply]
-        NonFungibleTokenMinted(AccountId, Hash, u128, u128, u128),
+        // [collection_id, start_idx, end_idx]
+        NonFungibleTokenMinted(Hash, u128, u128),
 
-        // [receiver, collection_id, amount, collection_total_supply]
-        FungibleTokenMinted(AccountId, Hash, u128, u128),
+        // [collection_id]
+        FungibleTokenMinted(Hash),
 
-        // [sender, receiver, collection_id, start_idx, amount]
-        NonFungibleTokenTransferred(AccountId, AccountId, Hash, u128, u128),
+        // [receiver, collection_id]
+        NonFungibleTokenTransferred(AccountId, Hash),
 
-        // [sender, receiver, collection_id, amount]
-        FungibleTokenTransferred(AccountId, AccountId, Hash, u128),
+        // [receiver, collection_id]
+        FungibleTokenTransferred(AccountId, Hash),
 
-        // [sender, collection_id, start_idx, amount, total_supply]
-        NonFungibleTokenBurned(AccountId, Hash, u128, u128, u128),
-        // [sender, collection_id, amount, total_supply]
-        FungibleTokenBurned(AccountId, Hash, u128, u128),
+        // [sender, collection_id]
+        NonFungibleTokenBurned(AccountId, Hash),
+        // [sender, collection_id]
+        FungibleTokenBurned(AccountId, Hash),
     }
 );
 
@@ -122,7 +122,7 @@ decl_module! {
         }
 
         #[weight = 10_000]
-         pub fn transfer_non_fungible(origin, receiver: T::AccountId, collection_id: T::Hash, start_idx: u128, amount:u128) -> DispatchResult {
+         pub fn transfer_non_fungible(origin, receiver: T::AccountId, collection_id: T::Hash, start_idx: u128, amount: u128) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
             Self::_transfer_non_fungible(who, receiver, collection_id, start_idx, amount)?;
@@ -278,11 +278,9 @@ impl<T: Config> NFTInterface<T::Hash, T::AccountId> for Module<T> {
 
         // [receiver, collection_id, start_idx, end_idx, new_total_supply]
         Self::deposit_event(RawEvent::NonFungibleTokenMinted(
-            receiver,
             collection_id,
             start_idx,
             end_idx,
-            new_total_supply,
         ));
 
         Ok(())
@@ -316,10 +314,7 @@ impl<T: Config> NFTInterface<T::Hash, T::AccountId> for Module<T> {
 
         // [receiver, collection_id, amount, collection_total_supply]
         Self::deposit_event(RawEvent::FungibleTokenMinted(
-            receiver,
             collection_id,
-            amount,
-            new_total_supply,
         ));
 
         Ok(())
@@ -397,11 +392,8 @@ impl<T: Config> NFTInterface<T::Hash, T::AccountId> for Module<T> {
         }
 
         Self::deposit_event(RawEvent::NonFungibleTokenTransferred(
-            who,
             receiver,
             collection_id,
-            start_idx,
-            amount,
         ));
 
         Ok(())
@@ -442,10 +434,8 @@ impl<T: Config> NFTInterface<T::Hash, T::AccountId> for Module<T> {
         AddressBalances::<T>::insert((collection_id, receiver.clone()), receiver_balance);
 
         Self::deposit_event(RawEvent::FungibleTokenTransferred(
-            who,
             receiver,
             collection_id,
-            amount,
         ));
 
         Ok(())
@@ -514,9 +504,6 @@ impl<T: Config> NFTInterface<T::Hash, T::AccountId> for Module<T> {
         Self::deposit_event(RawEvent::NonFungibleTokenBurned(
             who,
             collection_id,
-            start_idx,
-            amount,
-            new_total_supply,
         ));
 
         Ok(())
@@ -554,12 +541,10 @@ impl<T: Config> NFTInterface<T::Hash, T::AccountId> for Module<T> {
 
         AddressBalances::<T>::insert((collection_id, who.clone()), balance);
         BurnedTokens::<T>::insert(collection_id, burn_amount);
-        // [sender, amount, collection_id, start_idx]
+        
         Self::deposit_event(RawEvent::FungibleTokenBurned(
             who,
-            collection_id,
-            amount,
-            new_total_supply,
+            collection_id
         ));
 
         Ok(())
