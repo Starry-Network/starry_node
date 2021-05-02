@@ -29,7 +29,6 @@ fn create_dao() {
 
         assert_ok!(DaoModule::create_dao(
             alice,
-            DAO_DETAILS,
             METADATA,
             PERIOD_DURATION,
             VOTING_PERIOD,
@@ -40,9 +39,9 @@ fn create_dao() {
             DILUTION_BOUND
         ));
 
-        let dao_account = get_last_dao_account(&alice_address, &DAO_DETAILS);
+        let dao_account = get_last_dao_account(&alice_address, &METADATA);
         let dao = DaoModule::dao(&dao_account);
-        assert_eq!(&dao.details, &DAO_DETAILS);
+        assert_eq!(&dao.metadata, &METADATA);
         assert_eq!(&dao.period_duration, &PERIOD_DURATION);
     });
 }
@@ -55,7 +54,6 @@ fn create_dao_failed() {
         assert_noop!(
             DaoModule::create_dao(
                 alice.clone(),
-                DAO_DETAILS,
                 METADATA,
                 PERIOD_DURATION,
                 VOTING_PERIOD,
@@ -71,7 +69,6 @@ fn create_dao_failed() {
         assert_noop!(
             DaoModule::create_dao(
                 alice.clone(),
-                DAO_DETAILS,
                 METADATA,
                 WRONG_PERIOD_DURATION,
                 VOTING_PERIOD,
@@ -86,7 +83,6 @@ fn create_dao_failed() {
         assert_noop!(
             DaoModule::create_dao(
                 alice.clone(),
-                DAO_DETAILS,
                 METADATA,
                 PERIOD_DURATION,
                 WRONG_VOTING_PERIOD,
@@ -101,7 +97,6 @@ fn create_dao_failed() {
         assert_noop!(
             DaoModule::create_dao(
                 alice.clone(),
-                DAO_DETAILS,
                 METADATA,
                 PERIOD_DURATION,
                 VOTING_PERIOD,
@@ -116,7 +111,6 @@ fn create_dao_failed() {
         assert_noop!(
             DaoModule::create_dao(
                 alice.clone(),
-                DAO_DETAILS,
                 METADATA,
                 PERIOD_DURATION,
                 VOTING_PERIOD,
@@ -138,7 +132,7 @@ fn submit_proposal() {
         let alice = Origin::signed(alice_address);
 
         let new_dao_account =
-            create_a_dao(&alice_address, DAO_DETAILS, PROPOSAL_DEPOSIT, PROPOSAL_DEPOSIT);
+            create_a_dao(&alice_address, PROPOSAL_DEPOSIT, PROPOSAL_DEPOSIT);
 
         let shares_requested = 1;
         let tribute_offered = 0;
@@ -169,7 +163,7 @@ fn submit_proposal_and_tribute() {
         let alice = Origin::signed(alice_address);
 
         let new_dao_account =
-            create_a_dao(&alice_address, DAO_DETAILS, PROPOSAL_DEPOSIT, PROPOSAL_DEPOSIT);
+            create_a_dao(&alice_address, PROPOSAL_DEPOSIT, PROPOSAL_DEPOSIT);
         let escrow_id = DaoModule::escrow(&new_dao_account);
 
         let _ = Balances::deposit_creating(&alice_address, 100);
@@ -204,7 +198,7 @@ fn submit_proposal_and_tribute_nft() {
         let alice = Origin::signed(alice_address);
 
         let new_dao_account =
-            create_a_dao(&alice_address, DAO_DETAILS, PROPOSAL_DEPOSIT, PROPOSAL_DEPOSIT);
+            create_a_dao(&alice_address, PROPOSAL_DEPOSIT, PROPOSAL_DEPOSIT);
         let escrow_id = DaoModule::escrow(&new_dao_account);
 
         let shares_requested = 1;
@@ -247,7 +241,7 @@ fn cancel_proposal_and_back_tribute() {
         let alice = Origin::signed(alice_address);
 
         let new_dao_account =
-            create_a_dao(&alice_address, DAO_DETAILS, PROPOSAL_DEPOSIT, PROPOSAL_DEPOSIT);
+            create_a_dao(&alice_address, PROPOSAL_DEPOSIT, PROPOSAL_DEPOSIT);
         let escrow_id = DaoModule::escrow(&new_dao_account);
 
         let _ = Balances::deposit_creating(&alice_address, 100);
@@ -293,7 +287,7 @@ fn sponsor_proposal() {
         let _ = Balances::deposit_creating(&alice_address, 100);
 
         let new_dao_account =
-            create_a_dao(&alice_address, DAO_DETAILS, PROPOSAL_DEPOSIT, PROPOSAL_DEPOSIT);
+            create_a_dao(&alice_address, PROPOSAL_DEPOSIT, PROPOSAL_DEPOSIT);
 
         let shares_requested = 1;
         let tribute_offered = 0;
@@ -336,7 +330,7 @@ fn sponsor_proposal_failed() {
         let bob = Origin::signed(bob_address);
 
         let new_dao_account =
-            create_a_dao(&alice_address, DAO_DETAILS, PROPOSAL_DEPOSIT, PROPOSAL_DEPOSIT);
+            create_a_dao(&alice_address, PROPOSAL_DEPOSIT, PROPOSAL_DEPOSIT);
         // let escrow_id = DaoModule::escrow(&new_dao_account);
 
         let shares_requested = 1;
@@ -390,7 +384,7 @@ fn vote_proposal() {
         let _ = Balances::deposit_creating(&alice_address, 100);
 
         let new_dao_account =
-            create_a_dao(&alice_address, DAO_DETAILS, PROPOSAL_DEPOSIT, PROPOSAL_DEPOSIT);
+            create_a_dao(&alice_address, PROPOSAL_DEPOSIT, PROPOSAL_DEPOSIT);
 
         let shares_requested = 1;
         let tribute_offered = 0;
@@ -440,7 +434,7 @@ fn vote_proposal_failed() {
         let _ = Balances::deposit_creating(&alice_address, 100);
 
         let new_dao_account =
-            create_a_dao(&alice_address, DAO_DETAILS, PROPOSAL_DEPOSIT, PROPOSAL_DEPOSIT);
+            create_a_dao(&alice_address, PROPOSAL_DEPOSIT, PROPOSAL_DEPOSIT);
 
         let shares_requested = 1;
         let tribute_offered = 0;
@@ -510,7 +504,7 @@ fn process_proposal() {
         let _ = Balances::deposit_creating(&alice_address, 100);
 
         let new_dao_account =
-            create_a_dao(&alice_address, DAO_DETAILS, PROPOSAL_DEPOSIT, PROPOSAL_DEPOSIT);
+            create_a_dao(&alice_address, PROPOSAL_DEPOSIT, PROPOSAL_DEPOSIT);
 
         let shares_requested = 1;
         let tribute_offered = 0;
@@ -569,7 +563,7 @@ fn process_proposal_failed() {
         let _ = Balances::deposit_creating(&alice_address, 100);
 
         let new_dao_account =
-            create_a_dao(&alice_address, DAO_DETAILS, PROPOSAL_DEPOSIT, PROPOSAL_DEPOSIT);
+            create_a_dao(&alice_address, PROPOSAL_DEPOSIT, PROPOSAL_DEPOSIT);
 
         let shares_requested = 1;
         let tribute_offered = 0;
@@ -635,7 +629,7 @@ fn run_action() {
         let _ = Balances::deposit_creating(&alice_address, 100);
 
         let new_dao_account =
-            create_a_dao(&alice_address, DAO_DETAILS, PROPOSAL_DEPOSIT, PROPOSAL_DEPOSIT);
+            create_a_dao(&alice_address, PROPOSAL_DEPOSIT, PROPOSAL_DEPOSIT);
         let _ = Balances::deposit_creating(&new_dao_account, 100);
 
         let preimage =
@@ -701,7 +695,7 @@ fn ragequit() {
         let _ = Balances::deposit_creating(&alice_address, 100);
 
         let new_dao_account =
-            create_a_dao(&alice_address, DAO_DETAILS, PROPOSAL_DEPOSIT, PROPOSAL_DEPOSIT);
+            create_a_dao(&alice_address, PROPOSAL_DEPOSIT, PROPOSAL_DEPOSIT);
 
         let shares_requested = 1;
         let tribute_offered = 1;
@@ -790,7 +784,7 @@ fn ragequit_failed() {
         let _ = Balances::deposit_creating(&alice_address, 100);
 
         let new_dao_account =
-            create_a_dao(&alice_address, DAO_DETAILS, PROPOSAL_DEPOSIT, PROPOSAL_DEPOSIT);
+            create_a_dao(&alice_address, PROPOSAL_DEPOSIT, PROPOSAL_DEPOSIT);
 
         let shares_requested = 1;
         let tribute_offered = 0;

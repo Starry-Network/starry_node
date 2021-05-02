@@ -64,6 +64,7 @@ decl_event!(
 
         // [sender, collection_id]
         NonFungibleTokenBurned(AccountId, Hash),
+        
         // [sender, collection_id]
         FungibleTokenBurned(AccountId, Hash),
     }

@@ -133,12 +133,11 @@ pub fn get_last_dao_account(summoner_address: &u64, name: &Vec<u8>) -> u64 {
     DaoModule::dao_account_id(&dao_id)
 }
 
-pub fn create_a_dao(summoner_address: &u64, dao_name: Vec<u8>, proposal_deposit: u64, proposal_reward: u64) -> u64 {
+pub fn create_a_dao(summoner_address: &u64, proposal_deposit: u64, proposal_reward: u64) -> u64 {
     let summoner = Origin::signed(*summoner_address);
 
     DaoModule::create_dao(
         summoner,
-        dao_name.clone(),
         METADATA,
         PERIOD_DURATION,
         VOTING_PERIOD,
@@ -148,7 +147,7 @@ pub fn create_a_dao(summoner_address: &u64, dao_name: Vec<u8>, proposal_deposit:
         proposal_reward,
         DILUTION_BOUND
     ).unwrap();
-    get_last_dao_account(&summoner_address, &dao_name)
+    get_last_dao_account(&summoner_address, &METADATA)
 }
 
 // Build genesis storage according to the mock runtime.

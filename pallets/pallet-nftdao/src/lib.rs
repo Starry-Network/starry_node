@@ -54,7 +54,6 @@ impl TypeId for DAOId {
 pub struct DAOInfo<AccountId, BlockNumber, Balance> {
     pub account_id: AccountId,
     pub escrow_id: AccountId,
-    pub details: Vec<u8>,
     pub period_duration: u128,
     pub voting_period: u128,
     pub grace_period: u128,
@@ -213,7 +212,7 @@ decl_module! {
         fn deposit_event() = default;
 
         #[weight = 10_000 ]
-        pub fn create_dao(origin, details: Vec<u8>, metadata: Vec<u8>, period_duration: u128, voting_period: u128, grace_period: u128, shares_requested: u128, proposal_deposit: BalanceOf<T>, processing_reward: BalanceOf<T>, dilution_bound: u128 ) -> DispatchResult {
+        pub fn create_dao(origin, metadata: Vec<u8>, period_duration: u128, voting_period: u128, grace_period: u128, shares_requested: u128, proposal_deposit: BalanceOf<T>, processing_reward: BalanceOf<T>, dilution_bound: u128 ) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
             ensure!(proposal_deposit >= processing_reward, Error::<T>::DepositSmallerThanReward);
@@ -222,7 +221,7 @@ decl_module! {
             ensure!(grace_period > Zero::zero(), Error::<T>::GracePeriodShouldLargeThanZero);
             ensure!(dilution_bound > Zero::zero(), Error::<T>::DilutionBoundShouldLargeThanZero);
 
-            let dao_id = Self::dao_id(&who, &details)?;
+            let dao_id = Self::dao_id(&who, &metadata)?;
             let dao_account = Self::dao_account_id(&dao_id);
             let escrow_id = Self::dao_escrow_id(&dao_id);
 
@@ -231,7 +230,6 @@ decl_module! {
             let dao = DAOInfo {
                 account_id: dao_account.clone(),
                 escrow_id: escrow_id.clone(),
-                details,
                 period_duration,
                 voting_period,
                 grace_period,
