@@ -55,10 +55,10 @@ decl_event!(
         AccountId = <T as frame_system::Config>::AccountId,
         Hash = <T as frame_system::Config>::Hash,
     {
-        // (token owner, collection_id, token_id, subtoken_collection, subtoken_type)
-        SubTokenCreated(AccountId, Hash, u128, Hash, bool),
-        // (owner, collection_id, token_id, subtoken_collection)
-        TokenRecovered(AccountId, Hash, u128, Hash),
+        // (subtoken_collection, subtoken_type)
+        SubTokenCreated(Hash, bool),
+        // (collection_id, token_id)
+        TokenRecovered(Hash, u128),
     }
 );
 
@@ -98,7 +98,7 @@ decl_module! {
             SubTokens::<T>::insert(sub_token_collection_id, (collection_id, start_idx));
 
             // (token owner, collection_id, token_id, subtoken_collection, subtoken_type)
-            Self::deposit_event(RawEvent::SubTokenCreated(who, collection_id, start_idx, sub_token_collection_id, is_fungible));
+            Self::deposit_event(RawEvent::SubTokenCreated(sub_token_collection_id, is_fungible));
 
             Ok(())
         }
@@ -141,8 +141,8 @@ decl_module! {
                 T::NFT::destory_collection(&sub_token_collection_id);
             }
 
-            // (owner, collection_id, token_id, subtoken_collection)
-            Self::deposit_event(RawEvent::TokenRecovered(who, collection_id, start_idx, sub_token_collection_id));
+            // (collection_id, token_id)
+            Self::deposit_event(RawEvent::TokenRecovered(collection_id, start_idx));
 
             Ok(())
         }
