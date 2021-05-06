@@ -102,7 +102,7 @@ decl_module! {
             ensure!(collection.owner == who, Error::<T>::PermissionDenied);
 
             Self::_mint_fungible(receiver, collection_id, amount, &collection)?;
-            
+
             Self::deposit_event(RawEvent::FungibleTokenMinted(collection_id));
 
             Ok(())
@@ -135,7 +135,7 @@ decl_module! {
          pub fn transfer_non_fungible(origin, receiver: T::AccountId, collection_id: T::Hash, start_idx: u128, amount: u128) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
-            Self::_transfer_non_fungible(who, receiver, collection_id, start_idx, amount)?;
+            Self::_transfer_non_fungible(who, receiver.clone(), collection_id, start_idx, amount)?;
 
             Self::deposit_event(RawEvent::NonFungibleTokenTransferred(
                 receiver,
@@ -149,7 +149,7 @@ decl_module! {
          pub fn transfer_fungible(origin, receiver: T::AccountId, collection_id: T::Hash, amount:u128) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
-            Self::_transfer_fungible(who, receiver, collection_id, amount)?;
+            Self::_transfer_fungible(who.clone(), receiver.clone(), collection_id, amount)?;
 
             Self::deposit_event(RawEvent::FungibleTokenTransferred(receiver, collection_id));
 
@@ -160,7 +160,7 @@ decl_module! {
         pub fn burn_non_fungible(origin, collection_id: T::Hash, start_idx:u128, amount:u128) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
-            Self::_burn_non_fungible(who, collection_id, start_idx, amount)?;
+            Self::_burn_non_fungible(who.clone(), collection_id, start_idx, amount)?;
 
             Self::deposit_event(RawEvent::NonFungibleTokenBurned(who, collection_id));
 
@@ -171,7 +171,7 @@ decl_module! {
         pub fn burn_fungible(origin, collection_id: T::Hash, amount:u128) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
-            Self::_burn_fungible(who, collection_id, amount)?;
+            Self::_burn_fungible(who.clone(), collection_id, amount)?;
 
             Self::deposit_event(RawEvent::FungibleTokenBurned(who, collection_id));
 
