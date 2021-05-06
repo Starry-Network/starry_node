@@ -52,13 +52,16 @@ decl_storage! {
 decl_event!(
     pub enum Event<T>
     where
-        AccountId = <T as frame_system::Config>::AccountId,
         Hash = <T as frame_system::Config>::Hash,
     {
-        // (subtoken_collection, subtoken_type)
-        SubTokenCreated(Hash, bool),
+        // (subtoken_collection)
+        SubCollectionCreated(Hash),
         // (collection_id, token_id)
         TokenRecovered(Hash, u128),
+        // (sub_collection, start_idx, end_idx)
+        SubNonFungibleTokenMinted(Hash, u128, u128),
+        // sub_collection
+        SubFungibleTokenMinted(Hash),
     }
 );
 
@@ -98,7 +101,7 @@ decl_module! {
             SubTokens::<T>::insert(sub_token_collection_id, (collection_id, start_idx));
 
             // (token owner, collection_id, token_id, subtoken_collection, subtoken_type)
-            Self::deposit_event(RawEvent::SubTokenCreated(sub_token_collection_id, is_fungible));
+            Self::deposit_event(RawEvent::SubCollectionCreated(sub_token_collection_id));
 
             Ok(())
         }
@@ -161,7 +164,13 @@ decl_module! {
             ensure!(collection.owner == Self::account_id(), Error::<T>::PermissionDenied);
             ensure!(Self::sub_token_creator(sub_token_collection_id)==who, Error::<T>::PermissionDenied);
 
-            T::NFT::_mint_non_fungible(receiver, sub_token_collection_id, amount, uri, &collection)?;
+            let (start_idx, end_idx) = T::NFT::_mint_non_fungible(receiver, sub_token_collection_id, amount, uri, &collection)?;
+
+            Self::deposit_event(RawEvent::SubNonFungibleTokenMinted(
+                sub_token_collection_id,
+                start_idx,
+                end_idx,
+            ));
 
             Ok(())
         }
@@ -181,6 +190,8 @@ decl_module! {
             ensure!(Self::sub_token_creator(sub_token_collection_id)==who, Error::<T>::PermissionDenied);
 
             T::NFT::_mint_fungible(receiver, sub_token_collection_id, amount, &collection)?;
+
+            Self::deposit_event(RawEvent::SubFungibleTokenMinted(sub_token_collection_id));
 
             Ok(())
         }

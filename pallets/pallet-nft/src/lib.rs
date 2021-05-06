@@ -2,12 +2,13 @@
 
 use codec::{Decode, Encode};
 use frame_support::{
-    decl_error, decl_event, decl_module, decl_storage, dispatch::DispatchResult, ensure,
+    decl_error, decl_event, decl_module, decl_storage,
+    dispatch::{DispatchError, DispatchResult},
+    ensure,
 };
 use frame_system::ensure_signed;
-use pallet_collection::{TokenType, CollectionInfo, CollectionInterface};
+use pallet_collection::{CollectionInfo, CollectionInterface, TokenType};
 use sp_std::vec::Vec;
-
 
 #[cfg(test)]
 mod mock;
@@ -64,7 +65,7 @@ decl_event!(
 
         // [sender, collection_id]
         NonFungibleTokenBurned(AccountId, Hash),
-        
+
         // [sender, collection_id]
         FungibleTokenBurned(AccountId, Hash),
     }
@@ -101,6 +102,8 @@ decl_module! {
             ensure!(collection.owner == who, Error::<T>::PermissionDenied);
 
             Self::_mint_fungible(receiver, collection_id, amount, &collection)?;
+            
+            Self::deposit_event(RawEvent::FungibleTokenMinted(collection_id));
 
             Ok(())
         }
@@ -117,7 +120,13 @@ decl_module! {
             let collection =T::Collection::get_collection(collection_id);
             ensure!(collection.owner == who, Error::<T>::PermissionDenied);
 
-            Self::_mint_non_fungible(receiver, collection_id, amount, uri, &collection)?;
+            let (start_idx, end_idx) = Self::_mint_non_fungible(receiver, collection_id, amount, uri, &collection)?;
+
+            Self::deposit_event(RawEvent::NonFungibleTokenMinted(
+                collection_id,
+                start_idx,
+                end_idx,
+            ));
 
             Ok(())
         }
@@ -127,6 +136,12 @@ decl_module! {
             let who = ensure_signed(origin)?;
 
             Self::_transfer_non_fungible(who, receiver, collection_id, start_idx, amount)?;
+
+            Self::deposit_event(RawEvent::NonFungibleTokenTransferred(
+                receiver,
+                collection_id,
+            ));
+
             Ok(())
         }
 
@@ -135,6 +150,9 @@ decl_module! {
             let who = ensure_signed(origin)?;
 
             Self::_transfer_fungible(who, receiver, collection_id, amount)?;
+
+            Self::deposit_event(RawEvent::FungibleTokenTransferred(receiver, collection_id));
+
             Ok(())
         }
 
@@ -144,6 +162,8 @@ decl_module! {
 
             Self::_burn_non_fungible(who, collection_id, start_idx, amount)?;
 
+            Self::deposit_event(RawEvent::NonFungibleTokenBurned(who, collection_id));
+
             Ok(())
         }
 
@@ -152,6 +172,8 @@ decl_module! {
             let who = ensure_signed(origin)?;
 
             Self::_burn_fungible(who, collection_id, amount)?;
+
+            Self::deposit_event(RawEvent::FungibleTokenBurned(who, collection_id));
 
             Ok(())
         }
@@ -175,7 +197,7 @@ pub trait NFTInterface<Hash, AccountId> {
         amount: u128,
         uri: Vec<u8>,
         collection: &CollectionInfo<AccountId>,
-    ) -> DispatchResult;
+    ) -> Result<(u128, u128), DispatchError>;
 
     fn _mint_fungible(
         receiver: AccountId,
@@ -219,7 +241,7 @@ impl<T: Config> NFTInterface<T::Hash, T::AccountId> for Module<T> {
     }
 
     fn get_balance(collection_id: &T::Hash, who: &T::AccountId) -> u128 {
-       Self::address_balances((collection_id, who))
+        Self::address_balances((collection_id, who))
     }
 
     fn get_burned_amount(collection_id: &T::Hash) -> u128 {
@@ -236,7 +258,8 @@ impl<T: Config> NFTInterface<T::Hash, T::AccountId> for Module<T> {
         amount: u128,
         uri: Vec<u8>,
         collection: &CollectionInfo<T::AccountId>,
-    ) -> DispatchResult {
+    ) -> Result<(u128, u128), DispatchError> {
+        // Result<Hash, DispatchError>;
         ensure!(amount >= 1, Error::<T>::AmountLessThanOne);
 
         if let Some(token_type) = collection.token_type {
@@ -278,13 +301,13 @@ impl<T: Config> NFTInterface<T::Hash, T::AccountId> for Module<T> {
         Tokens::<T>::insert(collection_id, start_idx, token);
 
         // [receiver, collection_id, start_idx, end_idx, new_total_supply]
-        Self::deposit_event(RawEvent::NonFungibleTokenMinted(
-            collection_id,
-            start_idx,
-            end_idx,
-        ));
+        // Self::deposit_event(RawEvent::NonFungibleTokenMinted(
+        //     collection_id,
+        //     start_idx,
+        //     end_idx,
+        // ));
 
-        Ok(())
+        Ok((start_idx, end_idx))
     }
 
     fn _mint_fungible(
@@ -312,11 +335,6 @@ impl<T: Config> NFTInterface<T::Hash, T::AccountId> for Module<T> {
         //     <pallet_collection::Module<T>>::add_total_supply(collection_id, amount)?;
 
         AddressBalances::<T>::insert((collection_id, &receiver), owner_balance);
-
-        // [receiver, collection_id, amount, collection_total_supply]
-        Self::deposit_event(RawEvent::FungibleTokenMinted(
-            collection_id,
-        ));
 
         Ok(())
     }
@@ -392,11 +410,6 @@ impl<T: Config> NFTInterface<T::Hash, T::AccountId> for Module<T> {
             Tokens::<T>::insert(collection_id, sender_start_idx, token);
         }
 
-        Self::deposit_event(RawEvent::NonFungibleTokenTransferred(
-            receiver,
-            collection_id,
-        ));
-
         Ok(())
     }
 
@@ -433,11 +446,6 @@ impl<T: Config> NFTInterface<T::Hash, T::AccountId> for Module<T> {
 
         AddressBalances::<T>::insert((collection_id, who.clone()), sender_balance);
         AddressBalances::<T>::insert((collection_id, receiver.clone()), receiver_balance);
-
-        Self::deposit_event(RawEvent::FungibleTokenTransferred(
-            receiver,
-            collection_id,
-        ));
 
         Ok(())
     }
@@ -501,20 +509,11 @@ impl<T: Config> NFTInterface<T::Hash, T::AccountId> for Module<T> {
         if !is_burn_all {
             Tokens::<T>::insert(collection_id, new_start_idx, token);
         }
-        // [sender, amount, collection_id, start_idx]
-        Self::deposit_event(RawEvent::NonFungibleTokenBurned(
-            who,
-            collection_id,
-        ));
 
         Ok(())
     }
 
-    fn _burn_fungible(
-        who: T::AccountId,
-        collection_id: T::Hash,
-        amount: u128,
-    ) -> DispatchResult {
+    fn _burn_fungible(who: T::AccountId, collection_id: T::Hash, amount: u128) -> DispatchResult {
         ensure!(amount >= 1, Error::<T>::AmountLessThanOne);
 
         ensure!(
@@ -542,11 +541,6 @@ impl<T: Config> NFTInterface<T::Hash, T::AccountId> for Module<T> {
 
         AddressBalances::<T>::insert((collection_id, who.clone()), balance);
         BurnedTokens::<T>::insert(collection_id, burn_amount);
-        
-        Self::deposit_event(RawEvent::FungibleTokenBurned(
-            who,
-            collection_id
-        ));
 
         Ok(())
     }
