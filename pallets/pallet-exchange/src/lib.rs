@@ -81,12 +81,12 @@ decl_event!(
             <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance,
     {
         SomethingStored(u32, AccountId),
-        // collection_id, token_id, order_id, seller, amount, price
-        NonFungibleOrderCreated(Hash, u128, u128, AccountId, u128, Balance),
+        // order_id
+        NonFungibleOrderCreated(u128),
         // nft_order_id
         NonFungibleOrderCanceled(u128),
-        // collection_id, token_id, order_id, buyer, amount)
-        NonFungibleSold(Hash, u128, u128, AccountId, u128),
+        // collection_id, token_id, left_amount)
+        NonFungibleSold(Hash, u128, u128),
         // collection_id, seller, amount, reverse_ratio, m, end_time
         SemiFungiblePoolCreated(Hash, AccountId, u128, u128, u128, BlockNumber),
         // collection_id, seller
@@ -152,12 +152,7 @@ decl_module! {
             NextNonFungibleOrderId::put(next_nft_order_id);
 
             Self::deposit_event(RawEvent::NonFungibleOrderCreated(
-                collection_id,
-                token_id,
-                nft_order_id,
-                who,
-                amount,
-                price,
+                nft_order_id
             ));
 
             Ok(())
@@ -198,9 +193,7 @@ decl_module! {
             Self::deposit_event(RawEvent::NonFungibleSold(
                 *collection_id,
                 *token_id,
-                order_id,
-                who,
-                amount,
+                *left_amount
             ));
 
             Ok(())
