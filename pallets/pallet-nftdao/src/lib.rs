@@ -155,20 +155,20 @@ decl_event!(
     {
         // summoner_account, dao_account
         DAOCreated(AccountId, AccountId),
-        // dao_account, proposer, proposal_id
-        ProposalSubmitted(AccountId, AccountId, u128),
-        // dao_account, proposer, proposal_id
-        ProposalCanceled(AccountId, AccountId, u128),
-        // dao_account, sponsor, proposal_id, queue_index
-        ProposalSponsored(AccountId, AccountId, u128, u128),
-        // dao_account, member, is_yes, proposal_id, queue_index,
-        ProposalVoted(AccountId, AccountId, bool, u128, u128),
-        // dao_account, processer, proposal_id, queue_index, executed
-        ProposalExecuted(AccountId, AccountId, u128, u128, bool),
+        // proposal_id, starting_period
+        ProposalSubmitted(u128, u128),
+
+        ProposalCanceled(),
+        // queue_index
+        ProposalSponsored(u128),
+        // proposal_id, queue_index,
+        ProposalVoted(u128, u128),
+        // proposal_id, queue_index, executed
+        ProposalExecuted(u128, u128, bool),
         // dao_account, processer, proposal_id, queue_index, did_pass
-        ProposalProcessed(AccountId, AccountId, u128, u128, bool),
-        // dao_account, member, burn_shares
-        MemberRagequited(AccountId, AccountId, u128),
+        ProposalProcessed(u128, u128, bool),
+        // burn_shares
+        MemberRagequited(u128),
     }
 );
 
@@ -306,7 +306,7 @@ decl_module! {
             Proposals::<T>::insert(&dao_account, &proposal_id, proposal);
 
             // emit event
-            Self::deposit_event(RawEvent::ProposalSubmitted(dao_account, who, proposal_id));
+            Self::deposit_event(RawEvent::ProposalSubmitted(proposal_id, starting_period));
 
             Ok(())
         }
@@ -341,7 +341,7 @@ decl_module! {
                     T::Currency::transfer(&escrow_id, &who, proposal.clone().tribute_offered, AllowDeath)?;
                 }
                 // emit event
-                Self::deposit_event(RawEvent::ProposalCanceled(dao_account, who, proposal_id));
+                Self::deposit_event(RawEvent::ProposalCanceled());
 
             } else {
                 Err(Error::<T>::ProposalNotFound)?
@@ -384,7 +384,7 @@ decl_module! {
                 LastQueueIndex::<T>::insert(&dao_account, &queue_index);
 
                 // emit event
-                Self::deposit_event(RawEvent::ProposalSponsored(dao_account, who, proposal_id, queue_index));
+                Self::deposit_event(RawEvent::ProposalSponsored(queue_index));
 
             } else {
                 Err(Error::<T>::ProposalNotFound)?
@@ -455,7 +455,7 @@ decl_module! {
 
                 VoteMembers::<T>::insert((&dao_account, &proposal_index), &who, ());
                 // emit event
-                Self::deposit_event(RawEvent::ProposalVoted(dao_account, who, yes, proposal_id, proposal_index));
+                Self::deposit_event(RawEvent::ProposalVoted(proposal_id, proposal_index));
 
             } else {
                 Err(Error::<T>::ProposalNotFound)?
@@ -568,7 +568,7 @@ decl_module! {
                     };
                     Proposals::<T>::insert(&dao_account, &proposal_id, &proposal);
 
-                    Self::deposit_event(RawEvent::ProposalExecuted(dao_account.clone(), who.clone(), proposal_id, proposal_index, executed));
+                    Self::deposit_event(RawEvent::ProposalExecuted(proposal_id, proposal_index, executed));
                 }
 
 
@@ -590,7 +590,7 @@ decl_module! {
                 T::Currency::transfer(&escrow_id, &proposal.proposer, back_to_sponsor, AllowDeath)?;
 
                 // emit event
-                Self::deposit_event(RawEvent::ProposalProcessed(dao_account, who, proposal_id, proposal_index, did_pass));
+                Self::deposit_event(RawEvent::ProposalProcessed(proposal_id, proposal_index, did_pass));
             }
             else {
                 Err(Error::<T>::ProposalNotFound)?
@@ -647,7 +647,7 @@ decl_module! {
             DAOs::<T>::insert(&dao_account, dao);
 
             // emit event
-            Self::deposit_event(RawEvent::MemberRagequited(dao_account, who, shares_to_burn));
+            Self::deposit_event(RawEvent::MemberRagequited(shares_to_burn));
 
             Ok(())
         }
