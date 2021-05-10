@@ -161,12 +161,12 @@ decl_event!(
         ProposalCanceled(),
         // queue_index, starting_period
         ProposalSponsored(u128, u128),
-        // proposal_id, queue_index,
+        // proposal_id, member_shares(votes)
         ProposalVoted(u128, u128),
-        // proposal_id, queue_index, executed
-        ProposalExecuted(u128, u128, bool),
-        // dao_account, processer, proposal_id, queue_index, did_pass
-        ProposalProcessed(u128, u128, bool),
+        // proposal_id, executed
+        ProposalExecuted(u128, bool),
+        // proposal_id, did_pass
+        ProposalProcessed(u128, bool),
         // burn_shares
         MemberRagequited(u128),
     }
@@ -200,6 +200,7 @@ decl_error! {
         NoneStatus,
         PrevProposalUnprocessed,
         CanNotRagequit,
+        BurnSharesShouldLargeThanZero,
     }
 }
 
@@ -455,7 +456,7 @@ decl_module! {
 
                 VoteMembers::<T>::insert((&dao_account, &proposal_index), &who, ());
                 // emit event
-                Self::deposit_event(RawEvent::ProposalVoted(proposal_id, proposal_index));
+                Self::deposit_event(RawEvent::ProposalVoted(proposal_id, *member_shares));
 
             } else {
                 Err(Error::<T>::ProposalNotFound)?
@@ -568,7 +569,7 @@ decl_module! {
                     };
                     Proposals::<T>::insert(&dao_account, &proposal_id, &proposal);
 
-                    Self::deposit_event(RawEvent::ProposalExecuted(proposal_id, proposal_index, executed));
+                    Self::deposit_event(RawEvent::ProposalExecuted(proposal_id, executed));
                 }
 
 
@@ -582,15 +583,15 @@ decl_module! {
                     }
                 }
 
+                // emit event
+                Self::deposit_event(RawEvent::ProposalProcessed(proposal_id, did_pass));
+
                 let proposal_deposit = &dao.proposal_deposit;
                 let processing_reward = &dao.processing_reward;
                 let back_to_sponsor = proposal_deposit.checked_sub(processing_reward).ok_or(Error::<T>::NumOverflow)?;
 
                 T::Currency::transfer(&escrow_id, &who, *processing_reward, AllowDeath)?;
                 T::Currency::transfer(&escrow_id, &proposal.proposer, back_to_sponsor, AllowDeath)?;
-
-                // emit event
-                Self::deposit_event(RawEvent::ProposalProcessed(proposal_id, proposal_index, did_pass));
             }
             else {
                 Err(Error::<T>::ProposalNotFound)?
@@ -603,6 +604,7 @@ decl_module! {
         pub fn ragequit(origin, dao_account: T::AccountId, shares_to_burn: u128) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
+            ensure!(shares_to_burn > Zero::zero(), Error::<T>::BurnSharesShouldLargeThanZero);
             ensure!(DAOs::<T>::contains_key(&dao_account), Error::<T>::DAONotFound);
             ensure!(Members::<T>::contains_key(&dao_account, &who), Error::<T>::PermissionDenied);
 
