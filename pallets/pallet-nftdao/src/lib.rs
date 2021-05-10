@@ -153,14 +153,14 @@ decl_event!(
     where
         AccountId = <T as frame_system::Config>::AccountId,
     {
-        // summoner_account, dao_account
-        DAOCreated(AccountId, AccountId),
-        // proposal_id, starting_period
-        ProposalSubmitted(u128, u128),
+        // summoner_account, dao_account, escrow_id
+        DAOCreated(AccountId, AccountId, AccountId),
+        // proposal_id
+        ProposalSubmitted(u128),
 
         ProposalCanceled(),
-        // queue_index
-        ProposalSponsored(u128),
+        // queue_index, starting_period
+        ProposalSponsored(u128, u128),
         // proposal_id, queue_index,
         ProposalVoted(u128, u128),
         // proposal_id, queue_index, executed
@@ -247,10 +247,10 @@ decl_module! {
             };
 
             DAOs::<T>::insert(&dao_account, dao);
-            Escrows::<T>::insert(&dao_account, escrow_id);
+            Escrows::<T>::insert(&dao_account, &escrow_id);
             Members::<T>::insert(&dao_account, &who, member);
 
-            Self::deposit_event(RawEvent::DAOCreated(who, dao_account));
+            Self::deposit_event(RawEvent::DAOCreated(who, dao_account, escrow_id));
 
             Ok(())
         }
@@ -306,7 +306,7 @@ decl_module! {
             Proposals::<T>::insert(&dao_account, &proposal_id, proposal);
 
             // emit event
-            Self::deposit_event(RawEvent::ProposalSubmitted(proposal_id, starting_period));
+            Self::deposit_event(RawEvent::ProposalSubmitted(proposal_id));
 
             Ok(())
         }
@@ -384,7 +384,7 @@ decl_module! {
                 LastQueueIndex::<T>::insert(&dao_account, &queue_index);
 
                 // emit event
-                Self::deposit_event(RawEvent::ProposalSponsored(queue_index));
+                Self::deposit_event(RawEvent::ProposalSponsored(queue_index, starting_period));
 
             } else {
                 Err(Error::<T>::ProposalNotFound)?
