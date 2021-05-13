@@ -47,14 +47,12 @@ decl_event!(
     {
         // (creator, graph_id)
         GraphCreated(AccountId, Hash),
-        // (child_collection_id, child_token_id, parent_collection_id, parent_token_id)
-        NonFungibleTokenLinked(Hash, u128, Hash, u128),
+        NonFungibleTokenLinked(),
         // (who, fungible_collection, parent_collection_id, parent_token_id, amount)
         FungibleTokenLinkedByUser(AccountId, Hash, Hash, u128, u128),
         // (who, child_collection_id, child_token_id, fungible_collection, parent_collection_id, parent_token_id, amount)
         FungibleTokenLinkedByChild(AccountId, Hash, u128, Hash, Hash, u128, u128),
-        // (who, collection_id, token_id)
-        NonFungibleTokenRecovered(AccountId, Hash, u128),
+        NonFungibleTokenRecovered(),
         // (who, child_collection_id, child_token_id, fungible_collection, amount)
         FungibleTokenRecovered(AccountId, Hash, u128, Hash, u128),
     }
@@ -125,12 +123,7 @@ decl_module! {
             ChildToParent::<T>::insert((child_collection_id, child_token_id), (parent_collection_id, parent_token_id));
             ParentToChild::<T>::insert((parent_collection_id, parent_token_id), (child_collection_id, child_token_id), ());
 
-            Self::deposit_event(RawEvent::NonFungibleTokenLinked(
-                child_collection_id,
-                child_token_id,
-                parent_collection_id,
-                parent_token_id,
-            ));
+            Self::deposit_event(RawEvent::NonFungibleTokenLinked());
 
             Ok(())
         }
@@ -139,6 +132,7 @@ decl_module! {
         // if use polkadot.js can use Option<(T::Hash,u128)> normal, will change to it
         // child_collection_id: Option<T::Hash>, child_token_id: Option<u128>
         // pub fn link_fungible(origin, child_token: Option<(T::Hash,u128)>, fungible_collection_id: T::Hash, parent_collection_id: T::Hash, parent_token_id: u128, amount: u128) -> DispatchResult {
+
         pub fn link_fungible(origin, child_collection_id: Option<T::Hash>, child_token_id: Option<u128>, fungible_collection_id: T::Hash, parent_collection_id: T::Hash, parent_token_id: u128, amount: u128) -> DispatchResult {
 
             let who = ensure_signed(origin)?;
@@ -220,7 +214,7 @@ decl_module! {
 
             ChildToParent::<T>::remove((collection_id, token_id));
 
-            Self::deposit_event(RawEvent::NonFungibleTokenRecovered(who, collection_id, token_id));
+            Self::deposit_event(RawEvent::NonFungibleTokenRecovered());
 
             Ok(())
         }
