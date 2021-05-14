@@ -1,3 +1,18 @@
+//! # Collection Module
+//!
+//! - [`Config`]
+//! - [`Call`]
+//!
+//! Collection is used to represent a series of NonFungible or Fungible Tokens, which can also be understood as a folder. It is one of the basic modules.
+//!
+//! ## Interface
+//!
+//! ### Dispatchable Functions
+//!
+//! * `create_collection` - Create a collection to represent NFT/FT.
+//!
+//! [`Call`]: ./enum.Call.html
+//! [`Config`]: ./trait.Config.html
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::{Decode, Encode};
@@ -17,12 +32,16 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+/// Used to indicate the type of tokens in the Collection
 #[derive(Encode, Decode, Copy, Clone, PartialEq, Eq)]
 pub enum TokenType {
+    /// NFT type
     NonFungible,
+    /// FT type
     Fungible,
 }
 
+/// Details of a collection
 #[derive(Encode, Decode, Default, Clone, PartialEq)]
 pub struct CollectionInfo<AccountId> {
     pub owner: AccountId,
@@ -40,33 +59,48 @@ pub trait Config: frame_system::Config {
 
 decl_storage! {
     trait Store for Module<T: Config> as TemplateModule {
+        /// Increment number used to create collection_id
         pub Nonce get(fn get_nonce): u128;
+        /// The set of collection
         pub Collections get(fn collections): map hasher(blake2_128_concat) T::Hash => CollectionInfo<T::AccountId>;
     }
 }
 
 decl_event!(
+    /// Events for this module.
     pub enum Event<T>
     where
         AccountId = <T as frame_system::Config>::AccountId,
         Hash = <T as frame_system::Config>::Hash,
     {
+        /// A collection was created \[who, collection_id\]
         CollectionCreated(AccountId, Hash),
     }
 );
 
 decl_error! {
+    /// Errors for this module.
     pub enum Error for Module<T: Config> {
+        /// Nonce is too large to cause overflow
         NumOverflow,
     }
 }
 
 decl_module! {
+    /// The module declaration.
     pub struct Module<T: Config> for enum Call where origin: T::Origin {
         type Error = Error<T>;
 
+        // Used for handling module events.
         fn deposit_event() = default;
 
+        /// Create a new collection
+        ///
+        /// The dispatch origin of this call must be _Signed_.
+        ///
+        /// Parameters:
+        /// - `uri`: Used to get the detailed information of the collection such as name, description, cover_image, which can be the CID of ipfs or a URL.
+        /// - `is_fungible`: Is FT or not
         #[weight = 10_000]
         pub fn create_collection(origin, uri: Vec<u8>, is_fungible: bool) -> DispatchResult  {
             let who = ensure_signed(origin)?;
@@ -80,17 +114,25 @@ decl_module! {
 }
 
 pub trait CollectionInterface<Hash, AccountId> {
+    /// Check whether the collection exists by collection_id
     fn collection_exist(collection_id: Hash) -> bool;
+    /// Get a collection by collection_id
     fn get_collection(collection_id: Hash) -> CollectionInfo<AccountId>;
+    /// Generate collection_id through nonce
     fn generate_collection_id(nonce: u128) -> Result<Hash, DispatchError>;
+    /// nonce plus one
     fn nonce_increment() -> Result<u128, DispatchError>;
+    /// create a collection
     fn _create_collection(
         who: AccountId,
         uri: Vec<u8>,
         is_fungible: bool,
     ) -> Result<Hash, DispatchError>;
+    /// destory a collection by collection_id
     fn destory_collection(collection_id: &Hash);
+    /// Increase a certain amount of of collection total_supply by collection_id
     fn add_total_supply(collection_id: Hash, amount: u128) -> Result<u128, DispatchError>;
+    /// Reduce a certain amount of collection total_supply by collection_id
     fn sub_total_supply(collection_id: Hash, amount: u128) -> Result<u128, DispatchError>;
 }
 
