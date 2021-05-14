@@ -3,7 +3,8 @@
 //! - [`Config`]
 //! - [`Call`]
 //!
-//! Collection is used to represent a series of NonFungible or Fungible Tokens, which can also be understood as a folder. It is one of the basic modules.
+//! Collection is used to represent a series of NonFungible or Fungible Tokens,
+//! which can also be understood as a folder. It is one of the basic modules.
 //!
 //! ## Interface
 //!
@@ -13,6 +14,7 @@
 //!
 //! [`Call`]: ./enum.Call.html
 //! [`Config`]: ./trait.Config.html
+
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::{Decode, Encode};
@@ -32,7 +34,7 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-/// Used to indicate the type of tokens in the Collection
+/// Used to indicate the type of tokens in the Collection.
 #[derive(Encode, Decode, Copy, Clone, PartialEq, Eq)]
 pub enum TokenType {
     /// NFT type
@@ -41,7 +43,7 @@ pub enum TokenType {
     Fungible,
 }
 
-/// Details of a collection
+/// Details of a collection.
 #[derive(Encode, Decode, Default, Clone, PartialEq)]
 pub struct CollectionInfo<AccountId> {
     pub owner: AccountId,
@@ -59,9 +61,9 @@ pub trait Config: frame_system::Config {
 
 decl_storage! {
     trait Store for Module<T: Config> as TemplateModule {
-        /// Increment number used to create collection_id
+        /// Increment number used to create collection_id.
         pub Nonce get(fn get_nonce): u128;
-        /// The set of collection
+        /// The set of collection.
         pub Collections get(fn collections): map hasher(blake2_128_concat) T::Hash => CollectionInfo<T::AccountId>;
     }
 }
@@ -73,7 +75,7 @@ decl_event!(
         AccountId = <T as frame_system::Config>::AccountId,
         Hash = <T as frame_system::Config>::Hash,
     {
-        /// A collection was created \[who, collection_id\]
+        /// A collection was created. \[who, collection_id\]
         CollectionCreated(AccountId, Hash),
     }
 );
@@ -81,7 +83,7 @@ decl_event!(
 decl_error! {
     /// Errors for this module.
     pub enum Error for Module<T: Config> {
-        /// Nonce is too large to cause overflow
+        /// Nonce is too large to cause overflow.
         NumOverflow,
     }
 }
@@ -94,13 +96,13 @@ decl_module! {
         // Used for handling module events.
         fn deposit_event() = default;
 
-        /// Create a new collection
+        /// Create a new collection.
         ///
         /// The dispatch origin of this call must be _Signed_.
         ///
         /// Parameters:
         /// - `uri`: Used to get the detailed information of the collection such as name, description, cover_image, which can be the CID of ipfs or a URL.
-        /// - `is_fungible`: Is FT or not
+        /// - `is_fungible`: Is FT or not.
         #[weight = 10_000]
         pub fn create_collection(origin, uri: Vec<u8>, is_fungible: bool) -> DispatchResult  {
             let who = ensure_signed(origin)?;
@@ -114,25 +116,25 @@ decl_module! {
 }
 
 pub trait CollectionInterface<Hash, AccountId> {
-    /// Check whether the collection exists by collection_id
+    /// Check whether the collection exists by collection_id.
     fn collection_exist(collection_id: Hash) -> bool;
-    /// Get a collection by collection_id
+    /// Get a collection by collection_id.
     fn get_collection(collection_id: Hash) -> CollectionInfo<AccountId>;
-    /// Generate collection_id through nonce
+    /// Generate collection_id through nonce.
     fn generate_collection_id(nonce: u128) -> Result<Hash, DispatchError>;
-    /// nonce plus one
+    /// nonce plus one.
     fn nonce_increment() -> Result<u128, DispatchError>;
-    /// create a collection
+    /// create a collection.
     fn _create_collection(
         who: AccountId,
         uri: Vec<u8>,
         is_fungible: bool,
     ) -> Result<Hash, DispatchError>;
-    /// destory a collection by collection_id
+    /// destory a collection by collection_id.
     fn destory_collection(collection_id: &Hash);
-    /// Increase a certain amount of of collection total_supply by collection_id
+    /// Increase a certain amount of of collection total_supply by collection_id.
     fn add_total_supply(collection_id: Hash, amount: u128) -> Result<u128, DispatchError>;
-    /// Reduce a certain amount of collection total_supply by collection_id
+    /// Reduce a certain amount of collection total_supply by collection_id.
     fn sub_total_supply(collection_id: Hash, amount: u128) -> Result<u128, DispatchError>;
 }
 

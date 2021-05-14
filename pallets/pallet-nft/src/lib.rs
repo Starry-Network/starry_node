@@ -1,3 +1,32 @@
+//! # Collection Module
+//! 
+//! - [`Config`]
+//! - [`Call`]
+//!
+//! Create a batch of NonFungible or Fungible Tokens.
+//! 
+//! ### Terminology
+//! 
+//! * **Mint:** Mint one or a batch of NFTs or some FTs (SemiFts)
+//! * **transfer:** Transfer one or a batch of tokens from one account to another account
+//! * **Burn:** Destroy one or a batch of tokens from an account. This is an irreversible operation.
+//! * **Fungible Token:** Fungible or semi-fungible token
+//! * **Non-fungible asset:** Unique or have some copies of the token.
+//! 
+//! ## Interface
+//! 
+//! ### Dispatchable Functions
+//! 
+//! * `mint_fungible` - Mint some FTs
+//! * `mint_non_fungible` - Mint one or a batch of NFTs
+//! * `transfer_fungible` - Transfer some FTs to another account
+//! * `transfer_non_fungible` - Transfer one or a batch of NFTs to another account
+//! * `burn_fungible` - Destroy some FTs by owner
+//! * `burn_non_fungible` - Destroy one or a batch of NFTs NFTs by owner
+//! 
+//! [`Call`]: ./enum.Call.html
+//! [`Config`]: ./trait.Config.html
+
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::{Decode, Encode};
@@ -16,6 +45,7 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+/// Details of a NFT
 #[derive(Encode, Decode, Default, Clone, PartialEq)]
 pub struct TokenInfo<AccountId> {
     pub end_idx: u128,
@@ -31,56 +61,65 @@ pub trait Config: frame_system::Config {
 
 decl_storage! {
     trait Store for Module<T: Config> as NFTModule {
-        // collection_id => nft_id
+        /// The set of collection last token id. collection_id => nft_id
         pub LastTokenId get(fn last_token_id): map hasher(blake2_128_concat) T::Hash => u128;
 
-        // (collection_id, address) => balance;
+        /// Account balance in collection. (collection_id, address) => balance;
         pub AddressBalances get (fn address_balances): map hasher(blake2_128_concat) (T::Hash, T::AccountId) => u128;
 
-        // (collection_id, start_idx) => nft_info
+        /// The set of minted NFTs. (collection_id, start_idx) => nft_info
         pub Tokens get(fn tokens): double_map hasher(blake2_128_concat) T::Hash, hasher(blake2_128_concat) u128 => TokenInfo<T::AccountId>;
 
-        // collection_id => burned amount
+        /// The set of Collection burned count. collection_id => burned amount
         pub BurnedTokens get(fn burned_tokens): map hasher(blake2_128_concat) T::Hash => u128;
     }
 }
 
 decl_event!(
+    /// Events for this module.
     pub enum Event<T>
     where
         AccountId = <T as frame_system::Config>::AccountId,
         Hash = <T as frame_system::Config>::Hash,
     {
-        // [collection_id, start_idx, end_idx]
+        /// One or a batch of NFTs were Minted. \[collection_id, start_idx, end_idx\]
         NonFungibleTokenMinted(Hash, u128, u128),
 
-        // [collection_id]
+        /// Some FTs were minted. \[collection_id\]
         FungibleTokenMinted(Hash),
 
-        // [receiver, collection_id]
+        /// One or a batch of NFTs were transfered to another account. \[receiver, collection_id\]
         NonFungibleTokenTransferred(AccountId, Hash),
 
-        // [receiver, collection_id]
+        // some FTs were transfered to another account. \[receiver, collection_id\]
         FungibleTokenTransferred(AccountId, Hash),
 
-        // [sender, collection_id]
+        // One or a batch of NFTs were burned. \[sender, collection_id\]
         NonFungibleTokenBurned(AccountId, Hash),
 
-        // [sender, collection_id]
+        // Some FTs were burned.  \[sender, collection_id\]
         FungibleTokenBurned(AccountId, Hash),
     }
 );
 
-// Errors inform users that something went wrong.
+/// Errors inform users that something went wrong.
 decl_error! {
     pub enum Error for Module<T: Config> {
+        /// Number is too large or less than zero.
         NumOverflow,
+        /// The minimum value is 1.
         AmountLessThanOne,
+        /// Amount too large (amount is more than own).
         AmountTooLarge,
+        /// No permission to perform this operation.
         PermissionDenied,
+        /// Collection does not exist.
         CollectionNotFound,
+        /// Token does not exist.
         TokenNotFound,
+        /// The recipient cannot be the sender.
         ReceiverIsSender,
+        /// Wrong token type, for example: cann't mint FTs in NFT Collection.
         WrongTokenType
     }
 }
@@ -90,6 +129,14 @@ decl_module! {
 
         fn deposit_event() = default;
 
+        /// Mint some FTs.
+        ///
+        /// The dispatch origin of this call must be _Signed_.
+        ///
+        /// Parameters:
+        /// - `receiver`: The address that accepts minted tokens.
+        /// - `collection_id`: The id of the collection whose token type is FT.
+        /// - `amount`: How many tokens to mint
         #[weight = 10_000]
         pub fn mint_fungible(origin, receiver: T::AccountId, collection_id: T::Hash, amount: u128) -> DispatchResult {
             let who = ensure_signed(origin)?;
@@ -108,6 +155,19 @@ decl_module! {
             Ok(())
         }
 
+        /// Mint one or a batch of NFTs.
+        ///
+        /// If mint a batch of NFTs, end_idx will be stored in TokenInfo.
+        /// From start_idx to end_idx can be used to represent a batch of NFTs.
+        ///
+        /// The dispatch origin of this call must be _Signed_.
+        ///
+        /// Parameters:
+        /// - `receiver`: The address that accepts minted tokens.
+        /// - `collection_id`: The id of the collection whose token type is NFT.
+        /// - `uri`: Used to get the detailed information of the collection such as name,
+        /// description, cover_image, which can be the CID of ipfs or a URL.
+        /// - `amount`: How many tokens to mint.
         #[weight = 10_000]
         pub fn mint_non_fungible(origin, receiver: T::AccountId, collection_id: T::Hash, uri: Vec<u8>, amount:u128) -> DispatchResult {
             ensure!(
@@ -131,6 +191,39 @@ decl_module! {
             Ok(())
         }
 
+        /// Transfer some FTs to another account.
+        ///
+        /// The dispatch origin of this call must be _Signed_.
+        ///
+        /// Parameters:
+        /// - `receiver`: The address that accepts transfered tokens.
+        /// - `collection_id`: The id of the collection whose token type is FT and the
+        /// token to be transferred is in this collection
+        /// - `amount`: How many tokens to transfer.
+        #[weight = 10_000]
+        pub fn transfer_fungible(origin, receiver: T::AccountId, collection_id: T::Hash, amount:u128) -> DispatchResult {
+           let who = ensure_signed(origin)?;
+
+           Self::_transfer_fungible(who.clone(), receiver.clone(), collection_id, amount)?;
+
+           Self::deposit_event(RawEvent::FungibleTokenTransferred(receiver, collection_id));
+
+           Ok(())
+       }
+
+        /// Transfer one or a batch of NFTs to another account.
+        ///
+        /// If you need to transfer a batch of NFTs, the nft id will be the starting index,
+        /// note that the number of transfers cannot exceed (end_idx - start_idx) + 1.
+        ///
+        /// The dispatch origin of this call must be _Signed_.
+        ///
+        /// Parameters:
+        /// - `receiver`: The address that accepts transfered tokens.
+        /// - `collection_id`: The id of the collection whose token type is NFT and the
+        /// token to be transferred is in this collection.
+        /// - `start_idx`: The index of the token or a batch of tokens to be transferred.
+        /// - `amount`: How many tokens to transfer.
         #[weight = 10_000]
          pub fn transfer_non_fungible(origin, receiver: T::AccountId, collection_id: T::Hash, start_idx: u128, amount: u128) -> DispatchResult {
             let who = ensure_signed(origin)?;
@@ -145,28 +238,14 @@ decl_module! {
             Ok(())
         }
 
-        #[weight = 10_000]
-         pub fn transfer_fungible(origin, receiver: T::AccountId, collection_id: T::Hash, amount:u128) -> DispatchResult {
-            let who = ensure_signed(origin)?;
-
-            Self::_transfer_fungible(who.clone(), receiver.clone(), collection_id, amount)?;
-
-            Self::deposit_event(RawEvent::FungibleTokenTransferred(receiver, collection_id));
-
-            Ok(())
-        }
-
-        #[weight = 10_000]
-        pub fn burn_non_fungible(origin, collection_id: T::Hash, start_idx:u128, amount:u128) -> DispatchResult {
-            let who = ensure_signed(origin)?;
-
-            Self::_burn_non_fungible(who.clone(), collection_id, start_idx, amount)?;
-
-            Self::deposit_event(RawEvent::NonFungibleTokenBurned(who, collection_id));
-
-            Ok(())
-        }
-
+        /// Burn some FTs to another account.
+        ///
+        /// The dispatch origin of this call must be _Signed_.
+        ///
+        /// Parameters:
+        /// - `collection_id`: The id of the collection whose token type is FT and the
+        /// token to be burned is in this collection
+        /// - `amount`: How many tokens to burn.
         #[weight = 10_000]
         pub fn burn_fungible(origin, collection_id: T::Hash, amount:u128) -> DispatchResult {
             let who = ensure_signed(origin)?;
@@ -177,20 +256,41 @@ decl_module! {
 
             Ok(())
         }
+
+        /// Burn one or a batch of NFTS.
+        ///
+        /// The dispatch origin of this call must be _Signed_.
+        ///
+        /// Parameters:
+        /// - `collection_id`: The id of the collection whose token type is NFT and the
+        /// token to be burned is in this collection
+        /// - `start_idx`: The index of the token or a batch of tokens to be burned.
+        /// - `amount`: How many tokens to burn.
+        #[weight = 10_000]
+        pub fn burn_non_fungible(origin, collection_id: T::Hash, start_idx: u128, amount: u128) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+
+            Self::_burn_non_fungible(who.clone(), collection_id, start_idx, amount)?;
+
+            Self::deposit_event(RawEvent::NonFungibleTokenBurned(who, collection_id));
+
+            Ok(())
+        }
     }
 }
 
 pub trait NFTInterface<Hash, AccountId> {
+    /// Check whether the token exists by collection_id and token_id.
     fn token_exist(collection_id: Hash, token_id: u128) -> bool;
-
+    /// Get token by collection_id and token_id.
     fn get_nft_token(collection_id: Hash, token_id: u128) -> TokenInfo<AccountId>;
-
+    /// Get the balance of an account in a collection.
     fn get_balance(collection_id: &Hash, who: &AccountId) -> u128;
-
+    /// Get the count of tokens burned in a collection.
     fn get_burned_amount(collection_id: &Hash) -> u128;
-
+    /// Destory a collection by collection_id.
     fn destory_collection(collection_id: &Hash);
-
+    /// Mint NFTs
     fn _mint_non_fungible(
         receiver: AccountId,
         collection_id: Hash,
@@ -198,14 +298,14 @@ pub trait NFTInterface<Hash, AccountId> {
         uri: Vec<u8>,
         collection: &CollectionInfo<AccountId>,
     ) -> Result<(u128, u128), DispatchError>;
-
+    /// Mint FTs
     fn _mint_fungible(
         receiver: AccountId,
         collection_id: Hash,
         amount: u128,
         collection: &CollectionInfo<AccountId>,
     ) -> DispatchResult;
-
+    /// Transfer NFTs to another account.
     fn _transfer_non_fungible(
         who: AccountId,
         receiver: AccountId,
@@ -213,21 +313,21 @@ pub trait NFTInterface<Hash, AccountId> {
         start_idx: u128,
         amount: u128,
     ) -> DispatchResult;
-
+    /// Transfer FTs to another account.
     fn _transfer_fungible(
         who: AccountId,
         receiver: AccountId,
         collection_id: Hash,
         amount: u128,
     ) -> DispatchResult;
-
+    /// burn NFTs.
     fn _burn_non_fungible(
         who: AccountId,
         collection_id: Hash,
         start_idx: u128,
         amount: u128,
     ) -> DispatchResult;
-
+    /// burn FTs.
     fn _burn_fungible(who: AccountId, collection_id: Hash, amount: u128) -> DispatchResult;
 }
 
