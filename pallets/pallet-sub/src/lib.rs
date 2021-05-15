@@ -1,3 +1,27 @@
+//! # Collection Module
+//!
+//! - [`Config`]
+//! - [`Call`]
+//!
+//! Create Sub tokens from NFT.
+//!
+//! ### Terminology
+//!
+//! * **Sub Token:** Lock NFT to this module then create new collection and tokens.
+//! * **Recover:** Restore Sub Token to NFT.
+//!
+//! ## Interface
+//!
+//! ### Dispatchable Functions
+//!
+//! * `create` - Transfer NFT to this module, and then create a new collection.
+//! * `recover` - Transfer the locked NFT to the account that has all the sub tokens, and destroy the sub tokens.
+//! * `mint_non_fungible` -  Mint one or a batch of SubNFTs 
+//! * `mint_fungible` - Mint some SubFTs
+//!
+//! [`Call`]: ./enum.Call.html
+//! [`Config`]: ./trait.Config.html
+
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::{Decode, Encode};
@@ -16,21 +40,6 @@ mod mock;
 
 #[cfg(test)]
 mod tests;
-
-#[derive(Encode, Decode, Default, Clone, PartialEq)]
-pub struct TokenInfo<AccountId> {
-    pub end_idx: u128,
-    pub owner: AccountId,
-    pub uri: Vec<u8>,
-}
-
-// #[derive(Encode, Decode, Copy, Clone, PartialEq, Eq)]
-#[derive(Encode, Decode, Copy, Clone, PartialEq, Eq)]
-pub enum SubTokenType {
-    None,
-    NonFungible,
-    Fungible,
-}
 
 const PALLET_ID: ModuleId = ModuleId(*b"SubToken");
 
@@ -71,13 +80,6 @@ decl_error! {
         SubTokenNotFound,
         TokenNotFound,
         PermissionDenied,
-        AmountLessThanOne,
-        WrongTokenType,
-        NumOverflow,
-        UriIsNone,
-        AmountTooLarge,
-        BurnedAmountShouldBeZero,
-        BalanceInsufficient,
         BurnedtokensExistent,
     }
 }
