@@ -110,7 +110,6 @@ decl_event!(
     where
         AccountId = <T as frame_system::Config>::AccountId,
         Hash = <T as frame_system::Config>::Hash,
-        BlockNumber = <T as frame_system::Config>::BlockNumber,
         Balance =
             <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance,
     {
