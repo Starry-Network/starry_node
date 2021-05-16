@@ -1,4 +1,4 @@
-//! # Collection Module
+//! # Sub Module
 //!
 //! - [`Config`]
 //! - [`Call`]
@@ -51,35 +51,45 @@ pub trait Config: frame_system::Config {
 
 decl_storage! {
     trait Store for Module<T: Config> as SubModule {
-        // subtoken_collection => creator
+        /// The set of SubToken creators. subtoken_collection => creator
         pub SubTokenCreator get(fn sub_token_creator): map hasher(blake2_128_concat) T::Hash => T::AccountId;
-        // subtoken_collection => nft(collection_id, start_idx)
+        /// Record the collection_id of the SubToken corresponding to the locked NFT subtoken_collection => nft(collection_id, start_idx)
         pub SubTokens get(fn sub_tokens): map hasher(blake2_128_concat) T::Hash => (T::Hash, u128);
     }
 }
 
 decl_event!(
+    /// Events for this module.
     pub enum Event<T>
     where
         Hash = <T as frame_system::Config>::Hash,
     {
-        // (subtoken_collection)
+        /// A SubCollection created. \[sub_collection_id\]
         SubCollectionCreated(Hash),
-        // (collection_id, token_id)
+
+        /// Locked NFT was recovered. \[collection_id, token_id\]
         TokenRecovered(Hash, u128),
-        // (sub_collection, start_idx, end_idx)
+
+        /// One or a batch of SubNFTs were minted.  \[sub_collectio_idn, start_idx, end_idx\]
         SubNonFungibleTokenMinted(Hash, u128, u128),
-        // sub_collection
+
+        /// Some SubFTs were minted. \[sub_collection\]
         SubFungibleTokenMinted(Hash),
     }
 );
 
 decl_error! {
+    /// Errors inform users that something went wrong.
     pub enum Error for Module<T: Config> {
+        /// Collection does not exist.
         CollectionNotFound,
+        /// SubToken does not exist.
         SubTokenNotFound,
+        /// NFT does not exist.
         TokenNotFound,
+        /// No permission to perform this operation.
         PermissionDenied,
+        /// SubTokens cannot be burned at the time of recover
         BurnedtokensExistent,
     }
 }
@@ -89,7 +99,14 @@ decl_module! {
         type Error = Error<T>;
 
         fn deposit_event() = default;
-
+        /// Lock NFT to this pallet and create a new collection.
+        /// 
+        /// The dispatch origin of this call must be _Signed_.
+        /// 
+        /// Parameters:
+        /// - `collection_id`: The collection in which NFT is located.
+        /// - `start_idx`: NFT's Index
+        /// - `is_fungible`: SubToken is FT or not.
         #[weight = 10_000]
         pub fn create(origin, collection_id: T::Hash, start_idx: u128, is_fungible: bool) -> DispatchResult {
             let who = ensure_signed(origin.clone())?;
@@ -108,6 +125,12 @@ decl_module! {
             Ok(())
         }
 
+        /// Burn all SubTokens and restore to NFT.
+        /// 
+        /// The dispatch origin of this call must be _Signed_.
+        ///
+        /// Parameters:
+        /// - `sub_token_collection_id`: The collection where subtokens are located.
         #[weight = 10_000]
         pub fn recover(origin, sub_token_collection_id: T::Hash) -> DispatchResult {
             // when collection total_supply equals 0 and burn_amount equals 0, only creator can recover
@@ -152,6 +175,15 @@ decl_module! {
             Ok(())
         }
 
+        /// Mint one or a batch of SubNFTs.
+        ///
+        /// The dispatch origin of this call must be _Signed_.
+        /// 
+        /// Parameters:
+        /// - `receiver`: The address that accepts minted tokens.
+        /// - `sub_token_collection_id`: The collection where the minted SubNFTs is located
+        /// - `uri`: Uri representing the detailed information of SubNFT.
+        /// - `amount`: How many tokens to mint.
         #[weight = 10_000]
         pub fn mint_non_fungible(origin, receiver: T::AccountId, sub_token_collection_id: T::Hash, uri: Vec<u8>,  amount: u128,) -> DispatchResult {
             ensure!(
@@ -177,6 +209,14 @@ decl_module! {
             Ok(())
         }
 
+        /// Mint some FTs
+        ///
+        /// The dispatch origin of this call must be _Signed_.
+        /// 
+        /// Parameters:
+        /// - `receiver`: The address that accepts minted tokens.
+        /// - `sub_token_collection_id`: The collection where the minted FTs is located
+        /// - `amount`: How many tokens to mint.
         #[weight = 10_000]
         pub fn mint_fungible(origin, receiver: T::AccountId,  sub_token_collection_id: T::Hash, amount: u128,) -> DispatchResult {
             ensure!(
@@ -201,6 +241,7 @@ decl_module! {
 }
 
 impl<T: Config> Module<T> {
+    /// Account of this pallet.
     pub fn account_id() -> T::AccountId {
         PALLET_ID.into_account()
     }

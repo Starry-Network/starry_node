@@ -1,4 +1,4 @@
-# Collection Module
+# Sub Module
 
 Create Sub tokens from NFT.
 

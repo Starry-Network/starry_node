@@ -1,3 +1,36 @@
+//! # Exchange Module
+//!
+//! Exchange NFTs or FTs.
+//!
+//! For pool, use bancor curve.
+//! y = m * x ^ n
+//! r = reverseRatio  = ppm / 1000000
+//! after integral and simplify,
+//! can get these formula
+//! buy: p =  poolBalance * ((1 + amount / totalSupply) ** (1 / (reserveRatio)) - 1)
+//! sell: p = poolBalance * ( 1 - ( 1 - amount / totalSupply ) ** (1 / reserveRatio))
+//! current price = poolBalance / (totalSupply * reserveRatio)
+//! when supply is 0, p = reserveRatio * m * amount ** (1/reserveRatio)
+//! Thanks for the explanation in Slava Balasanov's article (https://blog.relevant.community/bonding-curves-in-depth-intuition-parametrization-d3905a681e0a)
+//!
+//! ### Terminology
+//!
+//! * **Pool:** It can be exchanged with some FTs, and the price can be automatically discovered through bancor curve.
+//!
+//! ## Interface
+//!
+//! ### Dispatchable Functions
+//!
+//! * `sell_nft` - Sell one or a batch of NFTs.
+//! * `buy_nft` - Buy one or a batch of NFTs.
+//! * `cancel_nft_order` - Cancel the order and get back the NFTs locked in the pallet.
+//! * `create_semi_token_pool` - Create a time-limited pool.
+//! * `sell_semi_token` - Sell FTs to pool.
+//! * `withdraw_pool` - After the time of the pool has passed, the creator of the pool can obtain the assets in the pool.
+//!
+//! [`Call`]: ./enum.Call.html
+//! [`Config`]: ./trait.Config.html
+
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::{Decode, Encode};
@@ -30,6 +63,7 @@ const PALLET_ID: ModuleId = ModuleId(*b"Exchange");
 type BalanceOf<T> =
     <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
+///Order details.
 #[derive(Encode, Decode, Default, Clone, PartialEq)]
 pub struct NonFungibleOrderInfo<Hash, AccountId, Balance> {
     pub collection_id: Hash,
@@ -39,6 +73,7 @@ pub struct NonFungibleOrderInfo<Hash, AccountId, Balance> {
     pub amount: u128,
 }
 
+/// Pool details.
 #[derive(Encode, Decode, Default, Clone, PartialEq)]
 pub struct SemiFungiblePoolInfo<AccountId, Balance, BlockNumber> {
     pub seller: AccountId,
@@ -48,8 +83,6 @@ pub struct SemiFungiblePoolInfo<AccountId, Balance, BlockNumber> {
     pub reverse_ratio: u128,
     pub pool_balance: Balance,
     pub end_time: BlockNumber,
-    // pub start_block_number: BlockNumber,
-    // pub duration: BlockNumber,
 }
 /// Configure the pallet by specifying the parameters and types on which it depends.
 pub trait Config: frame_system::Config {
@@ -61,17 +94,18 @@ pub trait Config: frame_system::Config {
 }
 
 decl_storage! {
-
     trait Store for Module<T: Config> as ExchangeModule {
-        // (collection id, token id)  => NonFungibleOrderInfo
+        /// Next order_id.
         NextNonFungibleOrderId get(fn next_nft_order_id): u128 = 0;
+        /// The set of NFT orders. order_id => (collection_id, token_id)
         NonFungibleOrders get(fn nft_order): map hasher(blake2_128_concat) u128 => NonFungibleOrderInfo<T::Hash, T::AccountId, BalanceOf<T>>;
-        // (collection id, seller_account) => pool
+        // The set of FTs pools. (collection id, seller_account) => pool
         SemiFungiblePools get (fn semi_fungible_pool): map hasher(blake2_128_concat) (T::Hash, T::AccountId) => SemiFungiblePoolInfo<T::AccountId, BalanceOf<T>, T::BlockNumber>;
     }
 }
 
 decl_event!(
+    /// Events for this module.
     pub enum Event<T>
     where
         AccountId = <T as frame_system::Config>::AccountId,
@@ -80,41 +114,53 @@ decl_event!(
         Balance =
             <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance,
     {
-        SomethingStored(u32, AccountId),
-        // order_id
+        /// An NFT order was created. \[order_id\]
         NonFungibleOrderCreated(u128),
-        // nft_order_id
+        /// An NFT order was calceled. \[nft_order_id\]
         NonFungibleOrderCanceled(u128),
-        // (left_amount)
+        ///  One or a batch of NFTs were sold. \[amount\]
         NonFungibleSold(u128),
-        // collection_id, seller, amount, reverse_ratio, m, end_time
-        SemiFungiblePoolCreated(Hash, AccountId, u128, u128, u128, BlockNumber),
-        // collection_id, seller
+        /// A pool was created. \[ft_collection_id\]
+        SemiFungiblePoolCreated(Hash),
+        /// assets were taken out from pool \[collection_id, seller\]
         SemiFungiblePoolWithdrew(Hash, AccountId),
-        // collection_id, pool_seller, token_buyer, amount, cost
-        SemiFungibleBought(Hash, AccountId, AccountId, u128, Balance),
-        // collection_id, pool_seller, token_seller, amount, receive
-        SemiFungibleSold(Hash, AccountId, AccountId, u128, Balance),
-        //
+        /// Buy FTs from pool. \[collection_id, cost\]
+        SemiFungibleBought(Hash, Balance),
+        /// Sell FTs to pool. \[collection_id, receive\]
+        SemiFungibleSold(Hash, Balance),
     }
 );
 
 decl_error! {
+    /// Errors inform users that something went wrong.
     pub enum Error for Module<T: Config> {
+        /// Number is too large or less than zero.
         NumOverflow,
-        ConvertFailed,
+        /// Collection does not exist.
         CollectionNotFound,
+        /// Token does not exist.
         TokenNotFound,
+        /// Order does not exist.
         OrderNotFound,
+        /// Pool does not exist.
         PoolNotFound,
+        /// Only one pool of FTs of the same collection can exist.
         PoolExisted,
+        /// Amount is more than own.
         AmountTooLarge,
+        /// The minimum value of amount is 1.
         AmountLessThanOne,
+        /// The minimum value of reverse_ratio is 1.
         ReverseRatioLessThanOne,
+        /// The minimum value of m is 1.
         MLessThanOne,
+        /// No permission to perform this operation.
         PermissionDenied,
+        /// Wrong token type.
         WrongTokenType,
+        /// Can't Sell FTs now.
         ExpiredSoldTime,
+        /// Not yet crossed the duration of the pool.
         CanNotWithdraw,
     }
 }
@@ -125,6 +171,15 @@ decl_module! {
 
         fn deposit_event() = default;
 
+        /// Sell one or a batch of NFTs.
+        ///
+        /// The dispatch origin of this call must be _Signed_.
+        ///
+        /// Parameters:
+        /// - `collection_id`: The collection_id of the NFT to be sold.
+        /// - `token_id`: The index of the NFT to be sold.
+        /// - `amount`: How many NFTs to sell.
+        /// - `price`: Pricing of NFTs.
         #[weight = 10_000]
         pub fn sell_nft(origin, collection_id: T::Hash, token_id: u128, amount: u128, price: BalanceOf<T>) -> DispatchResult {
             let who = ensure_signed(origin)?;
@@ -158,6 +213,13 @@ decl_module! {
             Ok(())
         }
 
+        /// Buy one or a batch of NFTs.
+        ///
+        /// The dispatch origin of this call must be _Signed_.
+        ///
+        /// Parameters:
+        /// - `order_id`: The id of the order
+        /// - `amount`: How many NFTs to buy.
         #[weight = 10_000]
         pub fn buy_nft(origin, order_id: u128, amount: u128) -> DispatchResult {
             let who = ensure_signed(origin)?;
@@ -203,6 +265,12 @@ decl_module! {
             Ok(())
         }
 
+        /// Cancel the order and get back the NFTs locked in the pallet.
+        ///
+        /// The dispatch origin of this call must be _Signed_.
+        ///
+        /// Parameters:
+        /// - `order_id`: Order to cancel.
         #[weight = 10_000]
         pub fn cancel_nft_order(origin, order_id: u128) -> DispatchResult {
             let who = ensure_signed(origin)?;
@@ -225,6 +293,18 @@ decl_module! {
             Ok(())
         }
 
+        /// Create a pool.
+        ///
+        /// Because the Bancor formula cannot be used when the assets in the pool are zero,
+        /// you need to use m to calculate the price of the first purchase.
+        ///
+        /// The dispatch origin of this call must be _Signed_.
+        ///
+        /// Parameters:
+        /// - `collection_id`: The collection where FT is located.
+        /// - `amount`: How many FTs to sell.
+        /// - `reverse_ratio`: Value that affects price sensitivity.
+        /// - `duration`: The duration of the pool.
         #[weight = 10_000]
         pub fn create_semi_token_pool(origin, collection_id: T::Hash, amount: u128, reverse_ratio: u128, m: u128, duration: T::BlockNumber) -> DispatchResult {
             let who = ensure_signed(origin)?;
@@ -263,17 +343,20 @@ decl_module! {
             SemiFungiblePools::<T>::insert((&collection_id, &who), pool);
 
             Self::deposit_event(RawEvent::SemiFungiblePoolCreated(
-                collection_id,
-                who,
-                amount,
-                reverse_ratio,
-                m,
-                end_time
+                collection_id
             ));
 
             Ok(())
         }
 
+        /// Buy FTs from pool.
+        ///
+        /// The dispatch origin of this call must be _Signed_.
+        ///
+        /// Parameters:
+        /// - `collection_id`: The collection where FT is located.
+        /// - `seller`: The creator of the pool.
+        /// - `amount`: How many NFTs to buy.
         #[weight = 10_000]
         pub fn buy_semi_token(origin, collection_id: T::Hash, seller: T::AccountId, amount: u128) -> DispatchResult {
             let who = ensure_signed(origin)?;
@@ -319,15 +402,20 @@ decl_module! {
 
             Self::deposit_event(RawEvent::SemiFungibleBought(
                 collection_id,
-                seller,
-                who,
-                amount,
                 cost
             ));
 
             Ok(())
         }
 
+        /// Sell FTs to pool.
+        ///
+        /// The dispatch origin of this call must be _Signed_.
+        ///
+        /// Parameters:
+        /// - `collection_id`: The collection where FT is located.
+        /// - `seller`: The creator of the pool.
+        /// - `amount`: How many NFTs to sell.
         #[weight = 10_000]
         pub fn sell_semi_token(origin, collection_id: T::Hash, seller: T::AccountId, amount: u128) -> DispatchResult {
             let who = ensure_signed(origin)?;
@@ -369,15 +457,18 @@ decl_module! {
 
             Self::deposit_event(RawEvent::SemiFungibleSold(
                 collection_id,
-                seller,
-                who,
-                amount,
                 receive
             ));
 
             Ok(())
         }
 
+        /// Withdraw assets from the pool by creator.
+        ///
+        /// The dispatch origin of this call must be _Signed_.
+        ///
+        /// Parameters:
+        /// - `collection_id`: The collection where FT is located.
         #[weight = 10_000]
         pub fn withdraw_pool(origin, collection_id: T::Hash) -> DispatchResult {
             let who = ensure_signed(origin)?;
@@ -408,23 +499,16 @@ decl_module! {
     }
 }
 
-// use bancor curve
-// y = m * x ^ n
-// r = reverseRatio  = ppm / 1000000
-// after integral and simplify,
-// can get these formula
-// buy: p =  poolBalance * ((1 + amount / totalSupply) ** (1 / (reserveRatio)) - 1)
-// sell: p = poolBalance * ( 1 - ( 1 - amount / totalSupply ) ** (1 / reserveRatio))
-// current price = poolBalance / (totalSupply * reserveRatio)
-// when supply is 0, p = reserveRatio * m * amount ** (1/reserveRatio)
-// Thanks for the explanation in Slava Balasanov's article (https://blog.relevant.community/bonding-curves-in-depth-intuition-parametrization-d3905a681e0a)
 impl<T: Config> Module<T> {
+    /// Account of this pallet.
     pub fn account_id() -> T::AccountId {
         PALLET_ID.into_account()
     }
-    // r  = reserve_ratio / max_weight, max_weight = 1000000, reserve_ratio >= 1
-    // p = b * ((k / s + 1) ^ (n + 1) - 1)
-    // n+1 => 1 / r => max_weight / reserve_ratio
+
+    /// pow operation
+    /// r  = reserve_ratio / max_weight, max_weight = 1000000, reserve_ratio >= 1
+    /// p = b * ((k / s + 1) ^ (n + 1) - 1)
+    /// n+1 => 1 / r => max_weight / reserve_ratio
     fn pow(operand: I64F64, reverse_ratio: u128) -> Result<I64F64, DispatchError> {
         // exponent = max_weight / reserve_ratio
         let max_weight = 1000000;
@@ -437,6 +521,7 @@ impl<T: Config> Module<T> {
         Ok(result)
     }
 
+    /// Keep two decimal places
     fn to_fixed2(operand: I64F64) -> Result<I64F64, DispatchError> {
         let hundred = I64F64::from_num(100);
         let r = operand
@@ -446,9 +531,11 @@ impl<T: Config> Module<T> {
         Ok(r.round() / 100)
     }
 
+    /// Calculate the price of the first purchase
+    /// r  = reserve_ratio / max_weight
+    /// p = r * m * amount ** (1/r)
     fn first_buy_cost(reverse_ratio: u128, m: u128, amount: u128) -> Result<u128, DispatchError> {
-        // r  = reserve_ratio / max_weight
-        // p = r * m * amount ** (1/r)
+        
         let max_weight = I64F64::from_num(1000000);
         let m = I64F64::from_num(m);
         let amount = I64F64::from_num(amount);
@@ -466,7 +553,8 @@ impl<T: Config> Module<T> {
         Ok(p.ceil().to_num::<u128>())
     }
 
-    // buy: p =  poolBalance * ((1 + amount / totalSupply) ** (1 / (reserveRatio)) - 1)
+    /// Get the price of purchasing FT
+    /// buy: p =  poolBalance * ((1 + amount / totalSupply) ** (1 / (reserveRatio)) - 1)
     fn buy_cost(
         pool_balance: BalanceOf<T>,
         amount: u128,
@@ -488,7 +576,8 @@ impl<T: Config> Module<T> {
         Ok(p.ceil().to_num::<u128>())
     }
 
-    // sell: p = poolBalance * ( 1 - ( 1 - amount / totalSupply ) ** (1 / reserveRatio))
+    /// Price of selling FT
+    /// sell: p = poolBalance * ( 1 - ( 1 - amount / totalSupply ) ** (1 / reserveRatio))
     fn sell_receive(
         pool_balance: BalanceOf<T>,
         amount: u128,

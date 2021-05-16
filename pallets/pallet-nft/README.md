@@ -1,4 +1,4 @@
-# Collection Module
+# NFT Module
 
 Create a batch of NonFungible or Fungible Tokens.
 

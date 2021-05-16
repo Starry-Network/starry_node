@@ -1,73 +1,32 @@
-# Substrate Pallet Template
+# Exchange Module
 
-This is a template for a Substrate pallet which lives as its own crate so it can be imported into multiple runtimes. It is based on the ["template" pallet](https://github.com/paritytech/substrate/tree/master/bin/node-template/pallets/template) that is included with the [Substrate node template](https://github.com/paritytech/substrate/tree/master/bin/node-template).
+Exchange NFTs or FTs.
 
-Check out the [HOWTO](HOWTO.md) to learn how to use this for your own runtime module.
+For pool, use bancor curve.
+y = m * x ^ n
+r = reverseRatio  = ppm / 1000000
+after integral and simplify,
+can get these formula
+buy: p =  poolBalance * ((1 + amount / totalSupply) ** (1 / (reserveRatio)) - 1)
+sell: p = poolBalance * ( 1 - ( 1 - amount / totalSupply ) ** (1 / reserveRatio))
+current price = poolBalance / (totalSupply * reserveRatio)
+when supply is 0, p = reserveRatio * m * amount ** (1/reserveRatio)
+Thanks for the explanation in Slava Balasanov's article (https://blog.relevant.community/bonding-curves-in-depth-intuition-parametrization-d3905a681e0a)
 
-This README should act as a general template for distributing your pallet to others.
+### Terminology
 
-## Purpose
+* **Pool:** It can be exchanged with some FTs, and the price can be automatically discovered through bancor curve.
 
-This pallet acts as a template for building other pallets.
+## Interface
 
-It currently allows a user to put a `u32` value into storage, which triggers a runtime event.
+### Dispatchable Functions
 
-## Dependencies
+* `sell_nft` - Sell one or a batch of NFTs.
+* `buy_nft` - Buy one or a batch of NFTs.
+* `cancel_nft_order` - Cancel the order and get back the NFTs locked in the pallet.
+* `create_semi_token_pool` - Create a time-limited pool.
+* `sell_semi_token` - Sell FTs to pool.
+* `withdraw_pool` - After the time of the pool has passed, the creator of the pool can obtain the assets in the pool.
 
-### Traits
-
-This pallet does not depend on any externally defined traits.
-
-### Pallets
-
-This pallet does not depend on any other FRAME pallet or externally developed modules.
-
-## Installation
-
-### Runtime `Cargo.toml`
-
-To add this pallet to your runtime, simply include the following to your runtime's `Cargo.toml` file:
-
-```TOML
-[dependencies.pallet-template]
-default_features = false
-git = 'https://github.com/substrate-developer-hub/substrate-pallet-template.git'
-```
-
-and update your runtime's `std` feature to include this pallet:
-
-```TOML
-std = [
-    # --snip--
-    'pallet-template/std',
-]
-```
-
-### Runtime `lib.rs`
-
-You should implement it's trait like so:
-
-```rust
-/// Used for test_module
-impl pallet_template::Config for Runtime {
-	type Event = Event;
-}
-```
-
-and include it in your `construct_runtime!` macro:
-
-```rust
-TemplatePallet: pallet_template::{Module, Call, Storage, Event<T>},
-```
-
-### Genesis Configuration
-
-This template pallet does not have any genesis configuration.
-
-## Reference Docs
-
-You can view the reference docs for this pallet by running:
-
-```
-cargo doc --open
-```
+[`Call`]: ./enum.Call.html
+[`Config`]: ./trait.Config.html
