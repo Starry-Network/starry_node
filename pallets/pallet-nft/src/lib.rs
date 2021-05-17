@@ -394,7 +394,7 @@ impl<T: Config> NFTInterface<T::Hash, T::AccountId> for Module<T> {
 
         // let new_total_supply =
         //     <pallet_collection::Module<T>>::add_total_supply(collection_id, amount)?;
-        // let new_total_supply = T::Collection::add_total_supply(collection_id, amount)?;
+        T::Collection::add_total_supply(collection_id, amount)?;
 
         LastTokenId::<T>::insert(collection_id, end_idx);
         AddressBalances::<T>::insert((collection_id, &receiver), owner_balance);
@@ -429,7 +429,7 @@ impl<T: Config> NFTInterface<T::Hash, T::AccountId> for Module<T> {
             .checked_add(amount)
             .ok_or(Error::<T>::NumOverflow)?;
 
-        // let new_total_supply = T::Collection::add_total_supply(collection_id, amount)?;
+        T::Collection::add_total_supply(collection_id, amount)?;
 
         // let new_total_supply =
         //     <pallet_collection::Module<T>>::add_total_supply(collection_id, amount)?;
@@ -600,6 +600,8 @@ impl<T: Config> NFTInterface<T::Hash, T::AccountId> for Module<T> {
             .ok_or(Error::<T>::NumOverflow)?;
         let is_burn_all = &new_start_idx == &token.end_idx;
 
+        T::Collection::sub_total_supply(collection_id, amount)?;
+
         AddressBalances::<T>::insert((collection_id, who.clone()), balance);
         Tokens::<T>::remove(collection_id, start_idx);
         BurnedTokens::<T>::insert(collection_id, burn_amount);
@@ -634,6 +636,8 @@ impl<T: Config> NFTInterface<T::Hash, T::AccountId> for Module<T> {
         let burn_amount = Self::burned_tokens(collection_id)
             .checked_add(amount)
             .ok_or(Error::<T>::NumOverflow)?;
+
+        T::Collection::sub_total_supply(collection_id, amount)?;
 
         AddressBalances::<T>::insert((collection_id, who.clone()), balance);
         BurnedTokens::<T>::insert(collection_id, burn_amount);
