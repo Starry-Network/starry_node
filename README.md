@@ -191,3 +191,12 @@ by appending your own. A few useful ones are as follow.
 # Check whether the code is compilable
 ./scripts/docker_run.sh cargo check
 ```
+
+### Pallets' Documentation
+
+- [pallet_collection](https://starry-network.github.io/starry_node/pallet_collection/index.html)
+- [pallet_nft](https://starry-network.github.io/starry_node/pallet_nft/index.html)
+- [pallet_graph](https://starry-network.github.io/starry_node/pallet_graph/index.html)
+- [pallet_sub](https://starry-network.github.io/starry_node/pallet_sub/index.html)
+- [pallet_exchange](https://starry-network.github.io/starry_node/pallet_exchange/index.html)
+- [pallet_nftdao](https://starry-network.github.io/starry_node/pallet_nftdao/index.html)
