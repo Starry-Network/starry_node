@@ -443,7 +443,6 @@ fn burn_non_fungible_success() {
         assert_eq!(collection.total_supply, mint_amount - burn_amount);
         assert_eq!(NFTModule::burned_tokens(collection_id), burn_amount);
 
-        let start_idx = start_idx + burn_amount;
         assert_eq!(NFTModule::tokens(collection_id, 2).owner, alice_address);
     });
 }

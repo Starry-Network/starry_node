@@ -282,8 +282,6 @@ fn create_smei_token_pool() {
     new_test_ext().execute_with(|| {
         let alice_address = 1;
         let alice = Origin::signed(alice_address);
-        let bob_address = 2;
-        let bob = Origin::signed(bob_address);
         let mint_amount = 10;
 
         CollectionModule::create_collection(alice.clone(), vec![2, 3, 3], true).unwrap();
