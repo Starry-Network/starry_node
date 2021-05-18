@@ -1,0 +1,3 @@
+(function() {var implementors = {};
+implementors["node_template_runtime"] = [{"text":"impl <a class=\"trait\" href=\"sp_runtime/traits/trait.GetNodeBlockType.html\" title=\"trait sp_runtime::traits::GetNodeBlockType\">GetNodeBlockType</a> for <a class=\"struct\" href=\"node_template_runtime/struct.Runtime.html\" title=\"struct node_template_runtime::Runtime\">Runtime</a>","synthetic":false,"types":["node_template_runtime::Runtime"]}];
+if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

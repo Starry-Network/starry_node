@@ -1,0 +1,3 @@
+(function() {var implementors = {};
+implementors["node_template"] = [{"text":"impl <a class=\"trait\" href=\"sc_executor/native_executor/trait.NativeExecutionDispatch.html\" title=\"trait sc_executor::native_executor::NativeExecutionDispatch\">NativeExecutionDispatch</a> for <a class=\"struct\" href=\"node_template/service/struct.Executor.html\" title=\"struct node_template::service::Executor\">Executor</a>","synthetic":false,"types":["node_template::service::Executor"]}];
+if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

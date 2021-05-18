@@ -1,0 +1,3 @@
+(function() {var implementors = {};
+implementors["pallet_nftdao"] = [{"text":"impl <a class=\"trait\" href=\"sp_core/trait.TypeId.html\" title=\"trait sp_core::TypeId\">TypeId</a> for <a class=\"struct\" href=\"pallet_nftdao/struct.DAOId.html\" title=\"struct pallet_nftdao::DAOId\">DAOId</a>","synthetic":false,"types":["pallet_nftdao::DAOId"]}];
+if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()
