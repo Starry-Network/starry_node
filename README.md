@@ -1,6 +1,6 @@
-# Substrate Node Template
+# Starry.network
 
-A fresh FRAME-based [Substrate](https://www.substrate.io/) node, ready for hacking :rocket:
+Functional NFT protocol support for  batch minting/transfer of NFT, combinable Token (Graph Token), Fractional NFT. Of course it also supports the creation of Moloch-like DAOs.
 
 ## Getting Started
 
@@ -25,6 +25,14 @@ without launching it:
 
 ```sh
 cargo build --release
+```
+
+### Test
+
+To run all pallets test, just run:
+
+```sh
+cargo test --release
 ```
 
 ### Embedded Docs
