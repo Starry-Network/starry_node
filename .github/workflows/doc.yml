@@ -16,7 +16,12 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - name: cargo doc
+    
+    - name: Build the docs
       run: cargo doc
-    - name: Run tests
-      run: cargo test --verbose
+   
+    - name: Deploy the docs
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./target/doc
