@@ -17,6 +17,13 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     
+    - name: Update environment
+      run: |
+          rustup default stable
+          rustup update nightly
+          rustup update stable
+          rustup target add wasm32-unknown-unknown --toolchain nightly
+    
     - name: Build the docs
       run: cargo doc
    
