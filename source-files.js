@@ -280,7 +280,6 @@ sourcesIndex["pallet_randomness_collective_flip"] = {"name":"","files":["lib.rs"
 sourcesIndex["pallet_session"] = {"name":"","files":["lib.rs","weights.rs"]};
 sourcesIndex["pallet_sub"] = {"name":"","files":["lib.rs"]};
 sourcesIndex["pallet_sudo"] = {"name":"","files":["lib.rs"]};
-sourcesIndex["pallet_template"] = {"name":"","files":["lib.rs"]};
 sourcesIndex["pallet_timestamp"] = {"name":"","files":["lib.rs","weights.rs"]};
 sourcesIndex["pallet_transaction_payment"] = {"name":"","files":["lib.rs","payment.rs","types.rs"]};
 sourcesIndex["pallet_transaction_payment_rpc"] = {"name":"","files":["lib.rs"]};

@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["Call","Dispatchable calls."],["Choices",""],["Error",""],["RawEvent","Events for this module."]],"struct":[["Hello",""],["Module",""]],"trait":[["Config","Configure the pallet by specifying the parameters and types on which it depends."]],"type":[["Event","`RawEvent` specialized for the configuration `Config`"]]});
