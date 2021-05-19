@@ -20,7 +20,6 @@ frame_support::construct_runtime!(
         UncheckedExtrinsic = UncheckedExtrinsic,
     {
         System: frame_system::{Module, Call, Config, Storage, Event<T>},
-        Template: pallet_template::{Module, Call, Storage, Event<T>},
         CollectionModule: pallet_collection::{Module, Call, Storage, Event<T>},
         NFTModule: pallet_nft::{Module, Call, Storage, Event<T>},
         DaoModule: pallet_dao::{Module, Call, Storage, Event<T>},
@@ -56,10 +55,6 @@ impl system::Config for Test {
     type OnKilledAccount = ();
     type SystemWeightInfo = ();
     type SS58Prefix = SS58Prefix;
-}
-
-impl pallet_template::Config for Test {
-    type Event = Event;
 }
 
 parameter_types! {

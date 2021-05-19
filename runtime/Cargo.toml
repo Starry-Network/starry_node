@@ -25,7 +25,6 @@ hex-literal = { optional = true, version = '0.3.1' }
 serde = { features = ['derive'], optional = true, version = '1.0.119' }
 
 # local dependencies
-pallet-template = { path = '../pallets/template', default-features = false, version = '3.0.0' }
 pallet-exchange = { path = '../pallets/pallet-exchange', default-features = false, version = '3.0.0' }
 pallet-collection = { path = '../pallets/pallet-collection', default-features = false, version = '3.0.0' }
 pallet-nft = { path = '../pallets/pallet-nft', default-features = false, version = '3.0.0' }
@@ -86,7 +85,6 @@ std = [
     'pallet-grandpa/std',
     'pallet-randomness-collective-flip/std',
     'pallet-sudo/std',
-    'pallet-template/std',
     'pallet-collection/std',
     'pallet-nft/std',
     'pallet-sub/std',
