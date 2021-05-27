@@ -49,7 +49,7 @@ pub trait Config: frame_system::Config {
 }
 
 decl_storage! {
-    trait Store for Module<T: Config> as SubModule {
+    trait Store for Module<T: Config> as SubNFTModule {
         /// The set of SubToken creators. subtoken_collection => creator
         pub SubTokenCreator get(fn sub_token_creator): map hasher(blake2_128_concat) T::Hash => T::AccountId;
         /// Record the collection_id of the SubToken corresponding to the locked NFT subtoken_collection => nft(collection_id, start_idx)

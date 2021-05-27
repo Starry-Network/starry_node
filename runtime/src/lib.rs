@@ -321,7 +321,7 @@ construct_runtime!(
 		CollectionModule: pallet_collection::{Module, Call, Storage, Event<T>},
 		NFTModule: pallet_nft::{Module, Call, Storage, Event<T>},
 		GraphModule: pallet_graph::{Module, Call, Storage, Event<T>},
-		SubModule: pallet_sub::{Module, Call, Storage, Event<T>},
+		SubNFTModule: pallet_sub::{Module, Call, Storage, Event<T>},
 		NFTDAOModule: pallet_nftdao::{Module, Call, Storage, Event<T>},
 	}
 );

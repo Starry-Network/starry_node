@@ -38,17 +38,17 @@ fn create_success() {
         let last_token_id = NFTModule::last_token_id(collection_id);
         let start_idx = mint_amount - last_token_id - 1;
 
-        assert_ok!(SubModule::create(alice, collection_id, start_idx, false));
+        assert_ok!(SubNFTModule::create(alice, collection_id, start_idx, false));
 
         let token = NFTModule::tokens(collection_id, start_idx);
 
-        assert_eq!(token.owner, SubModule::account_id());
+        assert_eq!(token.owner, SubNFTModule::account_id());
 
         let nonce = CollectionModule::get_nonce();
         let collection_id = <CollectionModule as CollectionInterface<_, _>>::generate_collection_id(nonce).unwrap();
         let collection = CollectionModule::collections(collection_id);
 
-        assert_eq!(collection.owner, SubModule::account_id());
+        assert_eq!(collection.owner, SubNFTModule::account_id());
     });
 }
 
@@ -77,17 +77,17 @@ fn create_failed() {
 
         let start_idx = 1;
         assert_noop!(
-            SubModule::create(alice.clone(), collection_id, start_idx, false),
+            SubNFTModule::create(alice.clone(), collection_id, start_idx, false),
             <pallet_nft::Error<Test>>::TokenNotFound
         );
 
         let start_idx = 0;
         assert_noop!(
-            SubModule::create(alice, not_available_collection_id, start_idx, false),
+            SubNFTModule::create(alice, not_available_collection_id, start_idx, false),
             <pallet_nft::Error<Test>>::CollectionNotFound
         );
         assert_noop!(
-            SubModule::create(bob, collection_id, start_idx, false),
+            SubNFTModule::create(bob, collection_id, start_idx, false),
             <pallet_nft::Error<Test>>::PermissionDenied
         );
     });
@@ -114,7 +114,7 @@ fn recover_success() {
         let last_token_id = NFTModule::last_token_id(collection_id);
         let start_idx = mint_amount - last_token_id - 1;
 
-        assert_ok!(SubModule::create(
+        assert_ok!(SubNFTModule::create(
             alice.clone(),
             collection_id,
             start_idx,
@@ -124,13 +124,13 @@ fn recover_success() {
         let nonce = CollectionModule::get_nonce();
         let sub_token_collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
 
-        assert_ok!(SubModule::recover(alice, sub_token_collection_id));
+        assert_ok!(SubNFTModule::recover(alice, sub_token_collection_id));
 
         let token = NFTModule::tokens(collection_id, start_idx);
 
         assert_eq!(token.owner, alice_address);
 
-        let (collection_id, _) = SubModule::sub_tokens(sub_token_collection_id);
+        let (collection_id, _) = SubNFTModule::sub_tokens(sub_token_collection_id);
 
         assert_eq!(H256::is_zero(&collection_id), true);
     });
@@ -160,7 +160,7 @@ fn recover_failed() {
         let last_token_id = NFTModule::last_token_id(collection_id);
         let start_idx = mint_amount - last_token_id - 1;
 
-        assert_ok!(SubModule::create(
+        assert_ok!(SubNFTModule::create(
             alice.clone(),
             collection_id,
             start_idx,
@@ -174,20 +174,20 @@ fn recover_failed() {
             CollectionModule::generate_collection_id(nonce + 1).unwrap();
 
         assert_noop!(
-            SubModule::recover(alice.clone(), not_available_collection_id),
+            SubNFTModule::recover(alice.clone(), not_available_collection_id),
             Error::<Test>::CollectionNotFound
         );
         assert_noop!(
-            SubModule::recover(alice.clone(), collection_id),
+            SubNFTModule::recover(alice.clone(), collection_id),
             Error::<Test>::SubTokenNotFound
         );
         assert_noop!(
-            SubModule::recover(bob, sub_token_collection_id),
+            SubNFTModule::recover(bob, sub_token_collection_id),
             Error::<Test>::PermissionDenied
         );
 
         let burn_amount = 2;
-        SubModule::mint_non_fungible(
+        SubNFTModule::mint_non_fungible(
             alice.clone(),
             alice_address,
             sub_token_collection_id,
@@ -206,7 +206,7 @@ fn recover_failed() {
         )
         .unwrap();
         assert_noop!(
-            SubModule::recover(alice, sub_token_collection_id),
+            SubNFTModule::recover(alice, sub_token_collection_id),
             Error::<Test>::BurnedtokensExistent
         );
     });
@@ -233,7 +233,7 @@ fn mint_non_fungible_success() {
         let last_token_id = NFTModule::last_token_id(collection_id);
         let start_idx = mint_amount - last_token_id - 1;
 
-        assert_ok!(SubModule::create(
+        assert_ok!(SubNFTModule::create(
             alice.clone(),
             collection_id,
             start_idx,
@@ -243,7 +243,7 @@ fn mint_non_fungible_success() {
         let nonce = CollectionModule::get_nonce();
         let sub_token_collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
 
-        assert_ok!(SubModule::mint_non_fungible(
+        assert_ok!(SubNFTModule::mint_non_fungible(
             alice.clone(),
             alice_address,
             sub_token_collection_id,
@@ -295,7 +295,7 @@ fn mint_non_fungible_failed() {
         let last_token_id = NFTModule::last_token_id(collection_id);
         let start_idx = mint_amount - last_token_id - 1;
 
-        assert_ok!(SubModule::create(
+        assert_ok!(SubNFTModule::create(
             alice.clone(),
             collection_id,
             start_idx,
@@ -308,7 +308,7 @@ fn mint_non_fungible_failed() {
             CollectionModule::generate_collection_id(nonce + 1).unwrap();
 
         assert_noop!(
-            SubModule::mint_non_fungible(
+            SubNFTModule::mint_non_fungible(
                 alice.clone(),
                 alice_address,
                 not_available_sub_token_collection_id,
@@ -319,7 +319,7 @@ fn mint_non_fungible_failed() {
         );
 
         assert_noop!(
-            SubModule::mint_non_fungible(
+            SubNFTModule::mint_non_fungible(
                 alice.clone(),
                 alice_address,
                 collection_id,
@@ -332,7 +332,7 @@ fn mint_non_fungible_failed() {
         let mint_amount = 0;
 
         assert_noop!(
-            SubModule::mint_non_fungible(
+            SubNFTModule::mint_non_fungible(
                 alice.clone(),
                 alice_address,
                 sub_token_collection_id,
@@ -365,7 +365,7 @@ fn mint_fungible_success() {
         let last_token_id = NFTModule::last_token_id(collection_id);
         let start_idx = mint_amount - last_token_id - 1;
 
-        assert_ok!(SubModule::create(
+        assert_ok!(SubNFTModule::create(
             alice.clone(),
             collection_id,
             start_idx,
@@ -375,7 +375,7 @@ fn mint_fungible_success() {
         let nonce = CollectionModule::get_nonce();
         let sub_token_collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
 
-        assert_ok!(SubModule::mint_fungible(
+        assert_ok!(SubNFTModule::mint_fungible(
             alice.clone(),
             alice_address,
             sub_token_collection_id,
@@ -414,7 +414,7 @@ fn mint_fungible_failed() {
         let last_token_id = NFTModule::last_token_id(collection_id);
         let start_idx = mint_amount - last_token_id - 1;
 
-        assert_ok!(SubModule::create(
+        assert_ok!(SubNFTModule::create(
             alice.clone(),
             collection_id,
             start_idx,
@@ -429,7 +429,7 @@ fn mint_fungible_failed() {
         let mint_amount = 5;
 
         assert_noop!(
-            SubModule::mint_fungible(
+            SubNFTModule::mint_fungible(
                 alice.clone(),
                 alice_address,
                 not_available_sub_token_collection_id,
@@ -439,7 +439,7 @@ fn mint_fungible_failed() {
         );
 
         assert_noop!(
-            SubModule::mint_fungible(
+            SubNFTModule::mint_fungible(
                 alice.clone(),
                 alice_address,
                 collection_id,
@@ -450,7 +450,7 @@ fn mint_fungible_failed() {
 
         let mint_amount = 0;
         assert_noop!(
-            SubModule::mint_fungible(alice.clone(), alice_address, sub_token_collection_id, mint_amount),
+            SubNFTModule::mint_fungible(alice.clone(), alice_address, sub_token_collection_id, mint_amount),
             <pallet_nft::Error<Test>>::AmountLessThanOne
         );
     });
