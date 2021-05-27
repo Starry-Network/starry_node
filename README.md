@@ -200,3 +200,8 @@ by appending your own. A few useful ones are as follow.
 - [pallet_sub](https://starry-network.github.io/starry_node/pallet_sub/index.html)
 - [pallet_exchange](https://starry-network.github.io/starry_node/pallet_exchange/index.html)
 - [pallet_nftdao](https://starry-network.github.io/starry_node/pallet_nftdao/index.html)
+
+### Starry' Documentation
+
+- [How to start Starry](https://github.com/Starry-Network/starry_node/blob/master/tutorial/run_app.md)
+- [How to use Starry](https://github.com/Starry-Network/starry_node/blob/master/tutorial/use_starry.md)
