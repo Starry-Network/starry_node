@@ -179,7 +179,7 @@ impl<T: Config> CollectionInterface<T::Hash, T::AccountId> for Module<T> {
         };
 
         let collection = CollectionInfo {
-            owner: who.clone(),
+            owner: who,
             total_supply: 0,
             uri,
             token_type,
