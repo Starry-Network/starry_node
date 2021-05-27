@@ -64,14 +64,18 @@ yarn install
 
 #### Configure
 
- before you can run the Query, you need to modify the endpoint in Project.xml.
+ before you can run the Query, you need to modify the endpoint in Project.yaml.
 
 ```xml
 network:
   endpoint: ws://172.17.0.1:9944
 ```
 
+Note that if you're running the node locally (i.e. not without docker), then you need to make sure you can communicate with that node from within the container. In this case, set: `endpoint: ws://host.docker.internal:9944`.
+
 #### Code generation
+
+This step is necessary before building.
 
 ```
 yarn codegen
