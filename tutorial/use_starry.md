@@ -1,0 +1,1 @@
+If the app is launched successfully, you can freely open the website and start using Starry.

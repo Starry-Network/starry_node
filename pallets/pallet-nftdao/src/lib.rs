@@ -549,6 +549,10 @@ decl_module! {
         /// If the proposal includes an action, ProposalExecuted event will be emitted after the action is executed.
         /// The ProposalProcessed event will be emitted after the proposal is processed.
         ///
+        /// Note that, like a stack, the proposal that can be processed must be 
+        /// the one at the beginning of the queue. If you do not process 
+        /// the first one, you will get an error.
+        ///
         /// The dispatch origin of this call must be _Signed_.
         ///
         /// Parameters:
