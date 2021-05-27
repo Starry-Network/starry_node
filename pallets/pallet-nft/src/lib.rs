@@ -204,7 +204,7 @@ decl_module! {
         pub fn transfer_fungible(origin, receiver: T::AccountId, collection_id: T::Hash, amount:u128) -> DispatchResult {
            let who = ensure_signed(origin)?;
 
-           Self::_transfer_fungible(who.clone(), receiver.clone(), collection_id, amount)?;
+           Self::_transfer_fungible(who, receiver.clone(), collection_id, amount)?;
 
            Self::deposit_event(RawEvent::FungibleTokenTransferred(receiver, collection_id));
 
@@ -383,7 +383,7 @@ impl<T: Config> NFTInterface<T::Hash, T::AccountId> for Module<T> {
         let end_idx = end_idx.checked_sub(1).ok_or(Error::<T>::NumOverflow)?;
 
         let token = TokenInfo {
-            end_idx: end_idx,
+            end_idx,
             owner: receiver.clone(),
             uri,
         };
@@ -502,8 +502,8 @@ impl<T: Config> NFTInterface<T::Hash, T::AccountId> for Module<T> {
 
         let is_transfer_all = &receiver_token.end_idx == &token.end_idx;
 
-        AddressBalances::<T>::insert((collection_id, who.clone()), sender_balance);
-        AddressBalances::<T>::insert((collection_id, receiver.clone()), receiver_balance);
+        AddressBalances::<T>::insert((collection_id, who), sender_balance);
+        AddressBalances::<T>::insert((collection_id, receiver), receiver_balance);
         Tokens::<T>::insert(collection_id, start_idx, receiver_token);
 
         if !is_transfer_all {
@@ -544,8 +544,8 @@ impl<T: Config> NFTInterface<T::Hash, T::AccountId> for Module<T> {
             .checked_add(amount)
             .ok_or(Error::<T>::NumOverflow)?;
 
-        AddressBalances::<T>::insert((collection_id, who.clone()), sender_balance);
-        AddressBalances::<T>::insert((collection_id, receiver.clone()), receiver_balance);
+        AddressBalances::<T>::insert((collection_id, who), sender_balance);
+        AddressBalances::<T>::insert((collection_id, receiver), receiver_balance);
 
         Ok(())
     }
@@ -602,7 +602,7 @@ impl<T: Config> NFTInterface<T::Hash, T::AccountId> for Module<T> {
 
         T::Collection::sub_total_supply(collection_id, amount)?;
 
-        AddressBalances::<T>::insert((collection_id, who.clone()), balance);
+        AddressBalances::<T>::insert((collection_id, who), balance);
         Tokens::<T>::remove(collection_id, start_idx);
         BurnedTokens::<T>::insert(collection_id, burn_amount);
 
@@ -639,7 +639,7 @@ impl<T: Config> NFTInterface<T::Hash, T::AccountId> for Module<T> {
 
         T::Collection::sub_total_supply(collection_id, amount)?;
 
-        AddressBalances::<T>::insert((collection_id, who.clone()), balance);
+        AddressBalances::<T>::insert((collection_id, who), balance);
         BurnedTokens::<T>::insert(collection_id, burn_amount);
 
         Ok(())

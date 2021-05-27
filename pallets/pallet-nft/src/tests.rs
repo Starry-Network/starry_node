@@ -15,7 +15,7 @@ fn mint_non_fungible_success() {
         let mint_amount = 5;
 
         assert_ok!(NFTModule::mint_non_fungible(
-            alice.clone(),
+            alice,
             alice_address,
             collection_id,
             vec![2, 3, 3],
@@ -73,7 +73,7 @@ fn mint_non_fungible_failed() {
         let mint_amount = 0;
         assert_noop!(
             NFTModule::mint_non_fungible(
-                alice.clone(),
+                alice,
                 alice_address,
                 collection_id,
                 vec![2, 3, 3],
@@ -95,7 +95,7 @@ fn mint_fungible_success() {
         let mint_amount = 5;
 
         assert_ok!(NFTModule::mint_fungible(
-            alice.clone(),
+            alice,
             alice_address,
             collection_id,
             mint_amount
@@ -137,7 +137,7 @@ fn mint_fungible_failed() {
 
         let mint_amount = 0;
         assert_noop!(
-            NFTModule::mint_fungible(alice.clone(), alice_address, collection_id, mint_amount),
+            NFTModule::mint_fungible(alice, alice_address, collection_id, mint_amount),
             Error::<Test>::AmountLessThanOne
         );
     });
@@ -174,7 +174,7 @@ fn transfer_non_fungible_success() {
 
         let transfer_amount = 2;
         assert_ok!(NFTModule::transfer_non_fungible(
-            alice.clone(),
+            alice,
             bob_address,
             collection_id,
             start_idx,
@@ -287,7 +287,7 @@ fn transfer_non_fungible_failed() {
 
         assert_noop!(
             NFTModule::transfer_non_fungible(
-                alice.clone(),
+                alice,
                 bob_address,
                 collection_id,
                 start_idx,
@@ -318,7 +318,7 @@ fn transfer_fungible_success() {
 
         let transfer_amount = 2;
         assert_ok!(NFTModule::transfer_fungible(
-            alice.clone(),
+            alice,
             bob_address,
             collection_id,
             transfer_amount
@@ -390,7 +390,7 @@ fn transfer_fungible_failed() {
         let transfer_amount = 20;
         assert_noop!(
             NFTModule::transfer_fungible(
-                alice.clone(),
+                alice,
                 bob_address,
                 collection_id,
                 transfer_amount
@@ -429,7 +429,7 @@ fn burn_non_fungible_success() {
         let start_idx = mint_amount - last_token_id - 1;
 
         assert_ok!(NFTModule::burn_non_fungible(
-            alice.clone(),
+            alice,
             collection_id,
             start_idx,
             burn_amount
@@ -500,7 +500,7 @@ fn burn_non_fungible_failed() {
         let burn_amount = 10;
 
         assert_noop!(
-            NFTModule::burn_non_fungible(alice.clone(), collection_id, start_idx, burn_amount),
+            NFTModule::burn_non_fungible(alice, collection_id, start_idx, burn_amount),
             Error::<Test>::AmountTooLarge
         );
     });
@@ -525,7 +525,7 @@ fn burn_fungible_success() {
 
         let burn_amount = 2;
         assert_ok!(NFTModule::burn_fungible(
-            alice.clone(),
+            alice,
             collection_id,
             burn_amount
         ));
@@ -569,7 +569,7 @@ fn burn_fungible_failed() {
 
         let burn_amount = 10;
         assert_noop!(
-            NFTModule::burn_fungible(alice.clone(), collection_id, burn_amount),
+            NFTModule::burn_fungible(alice, collection_id, burn_amount),
             Error::<Test>::AmountTooLarge
         );
     });
