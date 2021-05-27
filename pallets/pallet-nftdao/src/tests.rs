@@ -3,7 +3,6 @@ use codec::Encode;
 use frame_support::traits::Currency;
 use frame_support::{assert_noop, assert_ok};
 use sp_core::H256;
-use sp_runtime::traits::{BlakeTwo256, Hash};
 
 #[test]
 fn create_dao() {

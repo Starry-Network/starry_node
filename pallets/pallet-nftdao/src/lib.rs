@@ -47,7 +47,7 @@ use frame_support::{
     traits::Randomness,
     Parameter,
 };
-use sp_runtime::traits::{CheckedDiv, CheckedMul, CheckedSub, Zero, SaturatedConversion};
+use sp_runtime::traits::{CheckedDiv, CheckedMul, CheckedSub, SaturatedConversion, Zero};
 
 use frame_system::{self as system, ensure_signed};
 
@@ -380,7 +380,7 @@ decl_module! {
             ensure!(DAOs::<T>::contains_key(&dao_account), Error::<T>::DAONotFound);
 
             if let Some(proposal) = Self::proposal(&dao_account, proposal_id) {
-                ensure!(&who == &proposal.proposer, Error::<T>::PermissionDenied);
+                ensure!(who == proposal.proposer, Error::<T>::PermissionDenied);
 
                 ensure!(!&proposal.sponsored, Error::<T>::SponsoredProposal);
                 ensure!(!&proposal.cancelled, Error::<T>::CancelledProposal);
@@ -394,19 +394,19 @@ decl_module! {
 
                 Proposals::<T>::insert(&dao_account, &proposal_id, &proposal);
 
-                if let Some((collection_id, token_id)) = proposal.clone().tribute_nft {
+                if let Some((collection_id, token_id)) = proposal.tribute_nft {
                     T::NFT::_transfer_non_fungible(escrow_id.clone(), who.clone(), collection_id, token_id, 1)?;
                     // UserNFT::<T>::remove((&dao_account, &escrow_id), (collection_id, token_id));
                 }
 
-                if !(&proposal.tribute_offered == &Zero::zero()) {
-                    T::Currency::transfer(&escrow_id, &who, proposal.clone().tribute_offered, AllowDeath)?;
+                if !(proposal.tribute_offered == Zero::zero()) {
+                    T::Currency::transfer(&escrow_id, &who, proposal.tribute_offered, AllowDeath)?;
                 }
                 // emit event
                 Self::deposit_event(RawEvent::ProposalCanceled(proposal_id));
 
             } else {
-                Err(Error::<T>::ProposalNotFound)?
+                return Err(Error::<T>::ProposalNotFound.into())
             }
 
             Ok(())
@@ -445,7 +445,7 @@ decl_module! {
                     ..proposal
                 };
 
-                T::Currency::transfer(&who, &escrow_id, dao.clone().proposal_deposit, AllowDeath)?;
+                T::Currency::transfer(&who, &escrow_id, dao.proposal_deposit, AllowDeath)?;
 
                 Proposals::<T>::insert(&dao_account, &proposal_id, proposal);
                 ProposalQueues::<T>::insert(&dao_account, &queue_index, &proposal_id);
@@ -455,7 +455,7 @@ decl_module! {
                 Self::deposit_event(RawEvent::ProposalSponsored(queue_index, starting_period));
 
             } else {
-                Err(Error::<T>::ProposalNotFound)?
+                return Err(Error::<T>::ProposalNotFound.into());
             }
 
             Ok(())
@@ -512,7 +512,7 @@ decl_module! {
                     };
 
                     let member = Member {
-                        highest_index_yes_vote: proposal_index.clone(),
+                        highest_index_yes_vote: proposal_index,
                         ..member
                     };
 
@@ -534,20 +534,21 @@ decl_module! {
                 Self::deposit_event(RawEvent::ProposalVoted(proposal_id, *member_shares));
 
             } else {
-                Err(Error::<T>::ProposalNotFound)?
+                return Err(Error::<T>::ProposalNotFound.into());
             }
+
             Ok(())
         }
 
         ///  Processing proposal.
         ///
-        /// If the proposal fails, the tribute will be returned. After processing 
-        /// the proposal, part of the funds sponsored by the sponsor will be 
+        /// If the proposal fails, the tribute will be returned. After processing
+        /// the proposal, part of the funds sponsored by the sponsor will be
         /// given to the processor as a reward, and part will be returned to the sponsor.
-        /// 
+        ///
         /// If the proposal includes an action, ProposalExecuted event will be emitted after the action is executed.
         /// The ProposalProcessed event will be emitted after the proposal is processed.
-        ///  
+        ///
         /// The dispatch origin of this call must be _Signed_.
         ///
         /// Parameters:
@@ -578,7 +579,7 @@ decl_module! {
 
                 ensure!(!&proposal.processed, Error::<T>::ProcessedProposal);
 
-                let prev_proposal_unprocessed = if &proposal_index == &Zero::zero() {
+                let prev_proposal_unprocessed = if proposal_index == Zero::zero() {
                     false
                 } else {
                     let prev_index = &proposal_index.checked_sub(1).ok_or(Error::<T>::NumOverflow)?;
@@ -586,7 +587,7 @@ decl_module! {
                     if let Some(prev_proposal) = Self::proposal(&dao.account_id, prev_id) {
                         prev_proposal.processed
                     } else {
-                        Err(Error::<T>::ProposalNotFound)?
+                        return Err(Error::<T>::ProposalNotFound.into())
                     }
                 };
 
@@ -601,7 +602,7 @@ decl_module! {
 
                 let dilution_bound = &dao.dilution_bound;
                 let dilution = &dao.total_shares.checked_mul(*dilution_bound).ok_or(Error::<T>::NumOverflow)?;
-                let did_pass = if &proposal.yes_votes > &proposal.no_votes {
+                let did_pass = if proposal.yes_votes > proposal.no_votes {
                     dilution > &proposal.max_total_shares_at_yes_vote
                 } else {
                     false
@@ -683,7 +684,7 @@ decl_module! {
                 T::Currency::transfer(&escrow_id, &proposal.proposer, back_to_sponsor, AllowDeath)?;
             }
             else {
-                Err(Error::<T>::ProposalNotFound)?
+                return Err(Error::<T>::ProposalNotFound.into());
             }
 
             Ok(())
@@ -706,7 +707,7 @@ decl_module! {
 
             let member = Self::member(&dao_account, &who);
 
-            ensure!(&member.shares >= &shares_to_burn, Error::<T>::InsufficientShares);
+            ensure!(member.shares >= shares_to_burn, Error::<T>::InsufficientShares);
             ensure!(ProposalQueues::<T>::contains_key(&dao_account, &member.highest_index_yes_vote), Error::<T>::ProposalNotFound);
 
             let proposal_id = Self::proposal_queue(&dao_account, &member.highest_index_yes_vote);
@@ -717,8 +718,8 @@ decl_module! {
 
             let dao = Self::dao(&dao_account);
 
-            let shares = &member.shares.checked_sub(shares_to_burn.clone()).ok_or(Error::<T>::NumOverflow)?;
-            let new_total_shares = &dao.total_shares.checked_sub(shares_to_burn.clone()).ok_or(Error::<T>::NumOverflow)?;
+            let shares = &member.shares.checked_sub(shares_to_burn).ok_or(Error::<T>::NumOverflow)?;
+            let new_total_shares = &dao.total_shares.checked_sub(shares_to_burn).ok_or(Error::<T>::NumOverflow)?;
             let total_shares = &dao.total_shares;
 
             let member = Member {
@@ -769,7 +770,7 @@ impl<T: Config> Module<T> {
     }
 
     /// Hash related information.
-    fn _dao_id(summoner_address: &T::AccountId, details: &Vec<u8>, nonce: u128) -> [u8; 32] {
+    fn _dao_id(summoner_address: &T::AccountId, details: &[u8], nonce: u128) -> [u8; 32] {
         let seed = T::RandomnessSource::random_seed();
 
         let hash = BlakeTwo256::hash(&(details, seed).encode());
@@ -778,10 +779,7 @@ impl<T: Config> Module<T> {
         hash.into()
     }
     /// Convert the hash value to DAOId.
-    pub fn dao_id(
-        summoner_address: &T::AccountId,
-        details: &Vec<u8>,
-    ) -> Result<DAOId, DispatchError> {
+    pub fn dao_id(summoner_address: &T::AccountId, details: &[u8]) -> Result<DAOId, DispatchError> {
         let nonce = Self::nonce_increment()?;
         let id = Self::_dao_id(summoner_address, details, nonce);
 
@@ -826,7 +824,7 @@ impl<T: Config> Module<T> {
         dao: &DAOInfo<T::AccountId, T::BlockNumber, BalanceOf<T>>,
     ) -> Result<u128, DispatchError> {
         let summoning_time = &dao.summoning_time;
-        let u128_summoning_time =  (*summoning_time).saturated_into::<u128>();
+        let u128_summoning_time = (*summoning_time).saturated_into::<u128>();
 
         let now = <system::Pallet<T>>::block_number().saturated_into::<u128>();
         let period = now
@@ -854,7 +852,7 @@ impl<T: Config> Module<T> {
             let id = Self::proposal_queue(&dao.account_id, last_index);
 
             match Self::proposal(&dao.account_id, id) {
-                None => Err(Error::<T>::ProposalNotFound)?,
+                None => return Err(Error::<T>::ProposalNotFound.into()),
                 Some(proposal) => proposal.starting_period,
             }
         } else {
@@ -873,14 +871,14 @@ impl<T: Config> Module<T> {
     }
 
     /// Let dao perform an operation (call).
-    pub fn run(dao_account: T::AccountId, action_data: &Vec<u8>) -> Result<bool, DispatchError> {
+    pub fn run(dao_account: T::AccountId, action_data: &[u8]) -> Result<bool, DispatchError> {
         if let Ok(action) = T::Action::decode(&mut &action_data[..]) {
             // Ok(action.dispatch(frame_system::RawOrigin::Root.into()).is_ok())
             let dao = frame_system::RawOrigin::Signed(dao_account).into();
             // Ok(action.dispatch_bypass_filter(seld_origin).is_ok())
             Ok(action.dispatch(dao).is_ok())
         } else {
-            Err(Error::<T>::DecodeFailed)?
+            Err(Error::<T>::DecodeFailed.into())
         }
     }
 }
