@@ -885,6 +885,10 @@
 <span id="882">882</span>
 <span id="883">883</span>
 <span id="884">884</span>
+<span id="885">885</span>
+<span id="886">886</span>
+<span id="887">887</span>
+<span id="888">888</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="comment">// submit a proposal</span>
 <span class="comment">// dao members can sponsor submited proposal, then the proposal will in quee</span>
@@ -1436,6 +1440,10 @@
         <span class="doccomment">///</span>
         <span class="doccomment">/// If the proposal includes an action, ProposalExecuted event will be emitted after the action is executed.</span>
         <span class="doccomment">/// The ProposalProcessed event will be emitted after the proposal is processed.</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// Note that, like a stack, the proposal that can be processed must be </span>
+        <span class="doccomment">/// the one at the beginning of the queue. If you do not process </span>
+        <span class="doccomment">/// the first one, you will get an error.</span>
         <span class="doccomment">///</span>
         <span class="doccomment">/// The dispatch origin of this call must be _Signed_.</span>
         <span class="doccomment">///</span>
