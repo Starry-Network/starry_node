@@ -108,7 +108,7 @@ decl_module! {
         /// - `is_fungible`: SubToken is FT or not.
         #[weight = 10_000]
         pub fn create(origin, collection_id: T::Hash, start_idx: u128, is_fungible: bool) -> DispatchResult {
-            let who = ensure_signed(origin.clone())?;
+            let who = ensure_signed(origin)?;
             // transfer function will ensure collection and token exist so don't need to re-write ensure code.
             T::NFT::_transfer_non_fungible(who.clone(), Self::account_id(), collection_id, start_idx, 1)?;
 
@@ -150,12 +150,12 @@ decl_module! {
             ensure!(burned_amount == 0, Error::<T>::BurnedtokensExistent);
 
             if collection.total_supply == 0 {
-                ensure!(&Self::sub_token_creator(sub_token_collection_id) == &who, Error::<T>::PermissionDenied);
+                ensure!(Self::sub_token_creator(sub_token_collection_id) == who, Error::<T>::PermissionDenied);
             }
 
             let (collection_id, start_idx) = Self::sub_tokens(sub_token_collection_id);
             // <pallet_nft::Module<T>>::transfer_non_fungible(frame_system::RawOrigin::Signed(Self::account_id()).into(), who.clone(), collection_id, start_idx, 1)?;
-            T::NFT::_transfer_non_fungible(Self::account_id(), who.clone(), collection_id, start_idx, 1)?;
+            T::NFT::_transfer_non_fungible(Self::account_id(), who, collection_id, start_idx, 1)?;
 
             SubTokenCreator::<T>::remove(sub_token_collection_id);
             SubTokens::<T>::remove(sub_token_collection_id);

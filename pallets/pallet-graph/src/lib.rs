@@ -143,7 +143,7 @@ decl_module! {
             if have_parent {
                 // if token in ChildToParent, it's owner is graph pallet.
                 let root_token_owner = Self::find_root_owner(child_collection_id, child_token_id)?;
-                ensure!(&root_token_owner == &who, Error::<T>::PermissionDenied);
+                ensure!(root_token_owner == who, Error::<T>::PermissionDenied);
             } else {
                 // token's owner should be user
                 T::NFT::_transfer_non_fungible(who.clone(), Self::account_id(), child_collection_id, child_token_id, 1)?;
@@ -210,28 +210,26 @@ decl_module! {
 
                 Self::deposit_event(RawEvent::FungibleTokenLinkedByUser(who));
             }
-            else {
-                if let (Some(child_collection_id), Some(child_token_id)) = (child_collection_id, child_token_id) {
-                // if let Some((child_collection_id, child_token_id)) = child_token {
+            else if let (Some(child_collection_id), Some(child_token_id)) = (child_collection_id, child_token_id) {
+            // if let Some((child_collection_id, child_token_id)) = child_token {
 
-                    ensure!(ParentBalance::<T>::contains_key((child_collection_id, child_token_id), fungible_collection_id), Error::<T>::ChildHadNoBalance);
+                ensure!(ParentBalance::<T>::contains_key((child_collection_id, child_token_id), fungible_collection_id), Error::<T>::ChildHadNoBalance);
 
-                    let child_balance = Self::parent_balance((child_collection_id, child_token_id), fungible_collection_id);
-                    ensure!(child_balance >= amount, Error::<T>::AmountTooLarge);
-                    let child_balance = child_balance.checked_sub(amount).ok_or(Error::<T>::NumOverflow)?;
+                let child_balance = Self::parent_balance((child_collection_id, child_token_id), fungible_collection_id);
+                ensure!(child_balance >= amount, Error::<T>::AmountTooLarge);
+                let child_balance = child_balance.checked_sub(amount).ok_or(Error::<T>::NumOverflow)?;
 
-                    let root_token_owner = Self::find_root_owner(child_collection_id, child_token_id)?;
-                    ensure!(&root_token_owner == &who, Error::<T>::PermissionDenied);
+                let root_token_owner = Self::find_root_owner(child_collection_id, child_token_id)?;
+                ensure!(root_token_owner == who, Error::<T>::PermissionDenied);
 
-                    ParentBalance::<T>::insert((child_collection_id, child_token_id), fungible_collection_id, child_balance);
-                    ParentBalance::<T>::insert((parent_collection_id, parent_token_id), fungible_collection_id, parent_balance);
+                ParentBalance::<T>::insert((child_collection_id, child_token_id), fungible_collection_id, child_balance);
+                ParentBalance::<T>::insert((parent_collection_id, parent_token_id), fungible_collection_id, parent_balance);
 
-                    if child_balance == 0 {
-                        ParentBalance::<T>::remove((child_collection_id, child_token_id), fungible_collection_id);
-                    }
-
-                    Self::deposit_event(RawEvent::FungibleTokenLinkedByChild(who));
+                if child_balance == 0 {
+                    ParentBalance::<T>::remove((child_collection_id, child_token_id), fungible_collection_id);
                 }
+
+                Self::deposit_event(RawEvent::FungibleTokenLinkedByChild(who));
             }
 
             Ok(())
@@ -264,7 +262,7 @@ decl_module! {
 
             let root_token_owner = Self::find_root_owner(collection_id, token_id)?;
 
-            ensure!(&root_token_owner == &who, Error::<T>::PermissionDenied);
+            ensure!(root_token_owner == who, Error::<T>::PermissionDenied);
 
             // <pallet_nft::Module<T>>::transfer_non_fungible(frame_system::RawOrigin::Signed(Self::account_id()).into(), who.clone(), collection_id, token_id, 1)?;
             T::NFT::_transfer_non_fungible(Self::account_id(), who.clone(), collection_id, token_id, 1)?;
@@ -293,7 +291,7 @@ decl_module! {
             ensure!(child_balance >= amount, Error::<T>::AmountTooLarge);
 
             let root_token_owner = Self::find_root_owner(child_collection_id, child_token_id)?;
-            ensure!(&root_token_owner == &who, Error::<T>::PermissionDenied);
+            ensure!(root_token_owner == who, Error::<T>::PermissionDenied);
 
             let child_balance = child_balance.checked_sub(amount).ok_or(Error::<T>::NumOverflow)?;
 

@@ -1,6 +1,6 @@
 use crate::{mock::*, Error};
 use frame_support::{assert_noop, assert_ok};
-use pallet_nft;
+
 use pallet_collection::CollectionInterface;
 
 use sp_core::H256;
@@ -244,7 +244,7 @@ fn mint_non_fungible_success() {
         let sub_token_collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
 
         assert_ok!(SubNFTModule::mint_non_fungible(
-            alice.clone(),
+            alice,
             alice_address,
             sub_token_collection_id,
             vec![2, 3, 3],
@@ -333,7 +333,7 @@ fn mint_non_fungible_failed() {
 
         assert_noop!(
             SubNFTModule::mint_non_fungible(
-                alice.clone(),
+                alice,
                 alice_address,
                 sub_token_collection_id,
                 vec![2, 3, 3],
@@ -376,7 +376,7 @@ fn mint_fungible_success() {
         let sub_token_collection_id = CollectionModule::generate_collection_id(nonce).unwrap();
 
         assert_ok!(SubNFTModule::mint_fungible(
-            alice.clone(),
+            alice,
             alice_address,
             sub_token_collection_id,
             mint_amount
@@ -450,7 +450,7 @@ fn mint_fungible_failed() {
 
         let mint_amount = 0;
         assert_noop!(
-            SubNFTModule::mint_fungible(alice.clone(), alice_address, sub_token_collection_id, mint_amount),
+            SubNFTModule::mint_fungible(alice, alice_address, sub_token_collection_id, mint_amount),
             <pallet_nft::Error<Test>>::AmountLessThanOne
         );
     });

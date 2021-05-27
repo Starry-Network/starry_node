@@ -120,7 +120,7 @@ fn link_non_fungible() {
         assert_eq!(is_ancestor, false);
 
         assert_ok!(GraphModule::link_non_fungible(
-            alice.clone(),
+            alice,
             child_collection_id,
             3,
             parent_collection_id,
@@ -203,7 +203,7 @@ fn link_fungible() {
 
         assert_noop!(
             GraphModule::link_fungible(
-                bob.clone(),
+                bob,
                 child_collection_id,
                 child_token_id,
                 fungible_collection_id,
@@ -214,7 +214,7 @@ fn link_fungible() {
             Error::<Test>::PermissionDenied
         );
         assert_ok!(GraphModule::link_fungible(
-            alice.clone(),
+            alice,
             child_collection_id,
             child_token_id,
             fungible_collection_id,
@@ -281,7 +281,7 @@ fn recover() {
         );
 
         assert_ok!(GraphModule::recover_non_fungible(
-            alice.clone(),
+            alice,
             child_collection_id,
             1
         ));
@@ -362,7 +362,7 @@ fn recover_fungible() {
 
         assert_noop!(
             GraphModule::recover_fungible(
-                bob.clone(),
+                bob,
                 parent_collection_id,
                 0,
                 fungible_collection_id,
@@ -372,7 +372,7 @@ fn recover_fungible() {
         );
 
         assert_ok!(GraphModule::recover_fungible(
-            alice.clone(),
+            alice,
             parent_collection_id,
             0,
             fungible_collection_id,

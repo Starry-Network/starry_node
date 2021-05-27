@@ -446,7 +446,7 @@ impl<T: Config> NFTInterface<T::Hash, T::AccountId> for Module<T> {
         start_idx: u128,
         amount: u128,
     ) -> DispatchResult {
-        ensure!(&who != &receiver, Error::<T>::ReceiverIsSender);
+        ensure!(who != receiver, Error::<T>::ReceiverIsSender);
         ensure!(amount >= 1, Error::<T>::AmountLessThanOne);
 
         ensure!(
@@ -468,7 +468,7 @@ impl<T: Config> NFTInterface<T::Hash, T::AccountId> for Module<T> {
         }
 
         let token = Self::tokens(collection_id, start_idx);
-        ensure!(&token.owner == &who, Error::<T>::PermissionDenied);
+        ensure!(token.owner == who, Error::<T>::PermissionDenied);
 
         if amount > 1 {
             let token_amount = &token
@@ -500,7 +500,7 @@ impl<T: Config> NFTInterface<T::Hash, T::AccountId> for Module<T> {
             uri: token.uri.clone(),
         };
 
-        let is_transfer_all = &receiver_token.end_idx == &token.end_idx;
+        let is_transfer_all = receiver_token.end_idx == token.end_idx;
 
         AddressBalances::<T>::insert((collection_id, who), sender_balance);
         AddressBalances::<T>::insert((collection_id, receiver), receiver_balance);
@@ -520,7 +520,7 @@ impl<T: Config> NFTInterface<T::Hash, T::AccountId> for Module<T> {
         amount: u128,
     ) -> DispatchResult {
         ensure!(amount >= 1, Error::<T>::AmountLessThanOne);
-        ensure!(&who != &receiver, Error::<T>::ReceiverIsSender);
+        ensure!(who != receiver, Error::<T>::ReceiverIsSender);
         ensure!(
             T::Collection::collection_exist(collection_id),
             Error::<T>::CollectionNotFound
@@ -577,7 +577,7 @@ impl<T: Config> NFTInterface<T::Hash, T::AccountId> for Module<T> {
 
         let token = Self::tokens(collection_id, start_idx);
 
-        ensure!(&token.owner == &who, Error::<T>::PermissionDenied);
+        ensure!(token.owner == who, Error::<T>::PermissionDenied);
 
         if amount > 1 {
             let token_amount = &token
@@ -598,7 +598,7 @@ impl<T: Config> NFTInterface<T::Hash, T::AccountId> for Module<T> {
         let burn_amount = Self::burned_tokens(collection_id)
             .checked_add(amount)
             .ok_or(Error::<T>::NumOverflow)?;
-        let is_burn_all = &new_start_idx == &token.end_idx;
+        let is_burn_all = new_start_idx == token.end_idx;
 
         T::Collection::sub_total_supply(collection_id, amount)?;
 

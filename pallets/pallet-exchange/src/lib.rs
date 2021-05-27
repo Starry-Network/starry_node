@@ -187,7 +187,7 @@ decl_module! {
 
             let token = T::NFT::get_nft_token(collection_id, token_id);
 
-            ensure!(&token.owner == &who, Error::<T>::PermissionDenied);
+            ensure!(token.owner == who, Error::<T>::PermissionDenied);
 
             let nft_order_id = Self::next_nft_order_id();
             let next_nft_order_id = nft_order_id.checked_add(1).ok_or(Error::<T>::NumOverflow)?;
@@ -195,9 +195,9 @@ decl_module! {
             T::NFT::_transfer_non_fungible(who.clone(), Self::account_id(), collection_id, token_id, amount)?;
 
             let order_info = NonFungibleOrderInfo {
-                collection_id: collection_id.clone(),
+                collection_id,
                 start_idx: token_id,
-                seller: who.clone(),
+                seller: who,
                 price,
                 amount
             };
@@ -228,7 +228,7 @@ decl_module! {
 
             let order = Self::nft_order(order_id);
 
-            ensure!(&order.amount >= &amount, Error::<T>::AmountTooLarge);
+            ensure!(order.amount >= amount, Error::<T>::AmountTooLarge);
 
             let price = &order.price;
             let b_amout = amount.saturated_into::<BalanceOf<T>>();
@@ -239,7 +239,7 @@ decl_module! {
             let token_id = &order.start_idx;
 
             T::Currency::transfer(&who, &order.seller, cost, AllowDeath)?;
-            T::NFT::_transfer_non_fungible(Self::account_id(), who.clone(), *collection_id, *token_id, amount)?;
+            T::NFT::_transfer_non_fungible(Self::account_id(), who, *collection_id, *token_id, amount)?;
 
             // let sended_token = T::NFT::get_nft_token(collection_id.clone(), token_id.clone());
             // let start_idx = sended_token.end_idx.checked_add(1).ok_or(Error::<T>::NumOverflow)?;
@@ -278,13 +278,13 @@ decl_module! {
 
             let order = Self::nft_order(order_id);
 
-            ensure!(&order.seller == &who, Error::<T>::PermissionDenied);
+            ensure!(order.seller == who, Error::<T>::PermissionDenied);
 
             let amount = &order.amount;
             let collection_id = &order.collection_id;
             let token_id = &order.start_idx;
 
-            T::NFT::_transfer_non_fungible(Self::account_id(), who.clone(), *collection_id, *token_id, *amount)?;
+            T::NFT::_transfer_non_fungible(Self::account_id(), who, *collection_id, *token_id, *amount)?;
             NonFungibleOrders::<T>::remove(order_id);
 
             Self::deposit_event(RawEvent::NonFungibleOrderCanceled(order_id));
@@ -314,10 +314,10 @@ decl_module! {
             ensure!(amount >= 1, Error::<T>::AmountLessThanOne);
             // if pool existed, withdraw and delete pool
             ensure!(!SemiFungiblePools::<T>::contains_key((&collection_id, &who)), Error::<T>::PoolExisted);
-            ensure!(T::Collection::collection_exist(collection_id.clone()), Error::<T>::CollectionNotFound);
+            ensure!(T::Collection::collection_exist(collection_id), Error::<T>::CollectionNotFound);
             ensure!(T::NFT::get_balance(&collection_id, &who) >= amount, Error::<T>::AmountTooLarge);
 
-            let collection = T::Collection::get_collection(collection_id.clone());
+            let collection = T::Collection::get_collection(collection_id);
             if let Some(token_type) = collection.token_type {
                 ensure!(
                     token_type == TokenType::Fungible,
@@ -338,7 +338,7 @@ decl_module! {
                 pool_balance: 0_u128.saturated_into::<BalanceOf<T>>(),
             };
 
-            T::NFT::_transfer_fungible(who.clone(), Self::account_id(), collection_id.clone(), amount)?;
+            T::NFT::_transfer_fungible(who.clone(), Self::account_id(), collection_id, amount)?;
             SemiFungiblePools::<T>::insert((&collection_id, &who), pool);
 
             Self::deposit_event(RawEvent::SemiFungiblePoolCreated(
@@ -364,15 +364,15 @@ decl_module! {
 
             let pool = Self::semi_fungible_pool((&collection_id, &seller));
 
-            ensure!(&amount <= &pool.supply, Error::<T>::AmountTooLarge);
+            ensure!(amount <= pool.supply, Error::<T>::AmountTooLarge);
 
             let block_number = <system::Pallet<T>>::block_number();
-            ensure!(&block_number <= &pool.end_time, Error::<T>::ExpiredSoldTime);
+            ensure!(block_number <= pool.end_time, Error::<T>::ExpiredSoldTime);
 
             let reverse_ratio = &pool.reverse_ratio;
             let total_supply = &pool.sold;
 
-            let cost = if &pool.sold == & 0 {
+            let cost = if pool.sold == 0 {
                 let m = &pool.m;
                 Self::first_buy_cost(*reverse_ratio, *m, amount)?
              } else {
@@ -395,7 +395,7 @@ decl_module! {
             };
 
             T::Currency::transfer(&who, &Self::account_id(), cost, AllowDeath)?;
-            T::NFT::_transfer_fungible(Self::account_id(), who.clone(), collection_id.clone(), amount)?;
+            T::NFT::_transfer_fungible(Self::account_id(), who, collection_id, amount)?;
 
             SemiFungiblePools::<T>::insert((&collection_id, &seller), pool);
 
@@ -426,10 +426,10 @@ decl_module! {
 
             // pool.sold should large than 0
             ensure!(amount >= 1, Error::<T>::AmountLessThanOne);
-            ensure!(&pool.sold >= &amount, Error::<T>::AmountTooLarge);
+            ensure!(pool.sold >= amount, Error::<T>::AmountTooLarge);
 
             let block_number = <system::Pallet<T>>::block_number();
-            ensure!(&block_number <= &pool.end_time, Error::<T>::ExpiredSoldTime);
+            ensure!(block_number <= pool.end_time, Error::<T>::ExpiredSoldTime);
 
             let reverse_ratio = &pool.reverse_ratio;
             let total_supply = &pool.sold;
@@ -449,7 +449,7 @@ decl_module! {
                 ..pool
             };
 
-            T::NFT::_transfer_fungible(who.clone(), Self::account_id(), collection_id.clone(), amount)?;
+            T::NFT::_transfer_fungible(who.clone(), Self::account_id(), collection_id, amount)?;
             T::Currency::transfer(&Self::account_id(), &who, receive, AllowDeath)?;
 
             SemiFungiblePools::<T>::insert(pool_id, pool);
@@ -476,16 +476,16 @@ decl_module! {
             ensure!(SemiFungiblePools::<T>::contains_key(pool_id), Error::<T>::PoolNotFound);
 
             let pool = Self::semi_fungible_pool((&collection_id, &who));
-            ensure!(&pool.seller == &who, Error::<T>::PermissionDenied);
+            ensure!(pool.seller == who, Error::<T>::PermissionDenied);
 
             let block_number = <system::Pallet<T>>::block_number();
-            ensure!(&block_number > &pool.end_time, Error::<T>::CanNotWithdraw);
+            ensure!(block_number > pool.end_time, Error::<T>::CanNotWithdraw);
 
             let pool_balance = &pool.pool_balance;
             let supply = &pool.supply;
 
             SemiFungiblePools::<T>::remove(pool_id);
-            T::NFT::_transfer_fungible(Self::account_id(), who.clone(), collection_id.clone(), *supply)?;
+            T::NFT::_transfer_fungible(Self::account_id(), who.clone(), collection_id, *supply)?;
             T::Currency::transfer(&Self::account_id(), &who, *pool_balance, AllowDeath)?;
 
             Self::deposit_event(RawEvent::SemiFungiblePoolWithdrew(
@@ -521,7 +521,7 @@ impl<T: Config> Module<T> {
     }
 
     /// Keep two decimal places
-    fn to_fixed2(operand: I64F64) -> Result<I64F64, DispatchError> {
+    fn two_decimal_places(operand: I64F64) -> Result<I64F64, DispatchError> {
         let hundred = I64F64::from_num(100);
         let r = operand
             .checked_mul(hundred)
@@ -534,7 +534,6 @@ impl<T: Config> Module<T> {
     /// r  = reserve_ratio / max_weight
     /// p = r * m * amount ** (1/r)
     fn first_buy_cost(reverse_ratio: u128, m: u128, amount: u128) -> Result<u128, DispatchError> {
-        
         let max_weight = I64F64::from_num(1000000);
         let m = I64F64::from_num(m);
         let amount = I64F64::from_num(amount);
@@ -547,7 +546,7 @@ impl<T: Config> Module<T> {
         let operand = operand.checked_mul(m).ok_or(Error::<T>::NumOverflow)?;
         let p = operand.checked_mul(r).ok_or(Error::<T>::NumOverflow)?;
 
-        let p = Self::to_fixed2(p)?;
+        let p = Self::two_decimal_places(p)?;
 
         Ok(p.ceil().to_num::<u128>())
     }
@@ -571,7 +570,7 @@ impl<T: Config> Module<T> {
         let p = I64F64::from_num(pool_balance)
             .checked_mul(p)
             .ok_or(Error::<T>::NumOverflow)?;
-        let p = Self::to_fixed2(p)?;
+        let p = Self::two_decimal_places(p)?;
         Ok(p.ceil().to_num::<u128>())
     }
 

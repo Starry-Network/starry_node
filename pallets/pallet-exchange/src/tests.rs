@@ -96,7 +96,7 @@ fn sell_nft_failed() {
         assert_noop!(
             TemplateModule::sell_nft(
                 alice.clone(),
-                collection_id.clone(),
+                collection_id,
                 token_id,
                 mint_amount,
                 price
@@ -105,7 +105,7 @@ fn sell_nft_failed() {
         );
 
         assert_ok!(NFTModule::mint_non_fungible(
-            alice.clone(),
+            alice,
             alice_address,
             collection_id,
             vec![2, 3, 3],
@@ -459,7 +459,7 @@ fn buy_and_sell_smei_token() {
         let _ = Balances::deposit_creating(&bob_address, 100);
 
         assert_ok!(TemplateModule::create_semi_token_pool(
-            alice.clone(),
+            alice,
             collection_id,
             10,
             reverse_ratio,
@@ -468,17 +468,17 @@ fn buy_and_sell_smei_token() {
         ));
         assert_ok!(TemplateModule::buy_semi_token(
             bob.clone(),
-            collection_id.clone(),
-            alice_address.clone(),
+            collection_id,
+            alice_address,
             1
         ));
         // cost 10s
         assert_eq!(Balances::free_balance(&bob_address), 90);
 
         assert_ok!(TemplateModule::sell_semi_token(
-            bob.clone(),
-            collection_id.clone(),
-            alice_address.clone(),
+            bob,
+            collection_id,
+            alice_address,
             1
         ));
         assert_eq!(Balances::free_balance(&bob_address), 100);
@@ -514,7 +514,7 @@ fn buy_and_sell_smei_token_failed() {
         let _ = Balances::deposit_creating(&bob_address, 100);
 
         assert_ok!(TemplateModule::create_semi_token_pool(
-            alice.clone(),
+            alice,
             collection_id,
             10,
             reverse_ratio,
@@ -524,8 +524,8 @@ fn buy_and_sell_smei_token_failed() {
         assert_noop!(
             TemplateModule::buy_semi_token(
                 bob.clone(),
-                collection_id.clone(),
-                alice_address.clone(),
+                collection_id,
+                alice_address,
                 100
             ),
             Error::<Test>::AmountTooLarge
@@ -533,8 +533,8 @@ fn buy_and_sell_smei_token_failed() {
         assert_noop!(
             TemplateModule::buy_semi_token(
                 bob.clone(),
-                collection_id.clone(),
-                bob_address.clone(),
+                collection_id,
+                bob_address,
                 100
             ),
             Error::<Test>::PoolNotFound
@@ -542,16 +542,16 @@ fn buy_and_sell_smei_token_failed() {
 
         assert_ok!(TemplateModule::buy_semi_token(
             bob.clone(),
-            collection_id.clone(),
-            alice_address.clone(),
+            collection_id,
+            alice_address,
             1
         ));
 
         assert_noop!(
             TemplateModule::sell_semi_token(
                 bob.clone(),
-                collection_id.clone(),
-                alice_address.clone(),
+                collection_id,
+                alice_address,
                 100
             ),
             Error::<Test>::AmountTooLarge
@@ -559,8 +559,8 @@ fn buy_and_sell_smei_token_failed() {
         assert_noop!(
             TemplateModule::sell_semi_token(
                 bob.clone(),
-                collection_id.clone(),
-                bob_address.clone(),
+                collection_id,
+                bob_address,
                 100
             ),
             Error::<Test>::PoolNotFound
@@ -571,17 +571,17 @@ fn buy_and_sell_smei_token_failed() {
         assert_noop!(
             TemplateModule::buy_semi_token(
                 bob.clone(),
-                collection_id.clone(),
-                alice_address.clone(),
+                collection_id,
+                alice_address,
                 1
             ),
             Error::<Test>::ExpiredSoldTime
         );
         assert_noop!(
             TemplateModule::sell_semi_token(
-                bob.clone(),
-                collection_id.clone(),
-                alice_address.clone(),
+                bob,
+                collection_id,
+                alice_address,
                 1
             ),
             Error::<Test>::ExpiredSoldTime
@@ -627,25 +627,25 @@ fn withdraw_pool() {
         ));
         assert_ok!(TemplateModule::buy_semi_token(
             bob.clone(),
-            collection_id.clone(),
-            alice_address.clone(),
+            collection_id,
+            alice_address,
             1
         ));
 
         assert_noop!(
-            TemplateModule::withdraw_pool(alice.clone(), collection_id.clone()),
+            TemplateModule::withdraw_pool(alice.clone(), collection_id),
             Error::<Test>::CanNotWithdraw
         );
         assert_noop!(
-            TemplateModule::withdraw_pool(bob.clone(), collection_id.clone()),
+            TemplateModule::withdraw_pool(bob, collection_id),
             Error::<Test>::PoolNotFound
         );
 
         System::set_block_number(System::block_number() + 3);
 
         assert_ok!(TemplateModule::withdraw_pool(
-            alice.clone(),
-            collection_id.clone()
+            alice,
+            collection_id
         ));
 
         assert_eq!(Balances::free_balance(&alice_address), 10);
