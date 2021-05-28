@@ -26,7 +26,23 @@
     "processing_reward": "Balance"
   },
   "Member": {
-      "shares": "u128",
-      "highest_index_yes_vote": "u128"
+    "shares": "u128",
+    "highest_index_yes_vote": "u128"
+  },
+  "NonFungibleOrderInfo": {
+    "collection_id": "Hash",
+    "start_idx": "u128",
+    "seller": "AccountId",
+    "price": "Balance",
+    "amount": "u128"
+  },
+  "SemiFungiblePoolInfo": {
+    "seller": "AccountId",
+    "supply": "u128",
+    "m": "u128",
+    "sold": "u128",
+    "reverse_ratio": "u128",
+    "pool_balance": "Balance",
+    "end_time": "BlockNumber"
   }
 }
