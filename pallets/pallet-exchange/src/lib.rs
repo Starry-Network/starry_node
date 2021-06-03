@@ -113,12 +113,12 @@ decl_event!(
         Balance =
             <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance,
     {
-        /// An NFT order was created. \[order_id\]
-        NonFungibleOrderCreated(u128),
-        /// An NFT order was calceled. \[nft_order_id\]
-        NonFungibleOrderCanceled(u128),
-        ///  One or a batch of NFTs were sold. \[amount\]
-        NonFungibleSold(u128),
+        /// An NFT order was created. \[seller, order_id\]
+        NonFungibleOrderCreated(AccountId, u128),
+        /// An NFT order was calceled. \[seller, nft_order_id\]
+        NonFungibleOrderCanceled(AccountId, u128),
+        ///  One or a batch of NFTs were sold. \[buyer, amount\]
+        NonFungibleSold(AccountId, u128),
         /// A pool was created. \[ft_collection_id\]
         SemiFungiblePoolCreated(Hash),
         /// assets were taken out from pool \[collection_id, seller\]
@@ -197,7 +197,7 @@ decl_module! {
             let order_info = NonFungibleOrderInfo {
                 collection_id,
                 start_idx: token_id,
-                seller: who,
+                seller: who.clone(),
                 price,
                 amount
             };
@@ -206,6 +206,7 @@ decl_module! {
             NextNonFungibleOrderId::put(next_nft_order_id);
 
             Self::deposit_event(RawEvent::NonFungibleOrderCreated(
+                who,
                 nft_order_id
             ));
 
@@ -239,7 +240,7 @@ decl_module! {
             let token_id = &order.start_idx;
 
             T::Currency::transfer(&who, &order.seller, cost, AllowDeath)?;
-            T::NFT::_transfer_non_fungible(Self::account_id(), who, *collection_id, *token_id, amount)?;
+            T::NFT::_transfer_non_fungible(Self::account_id(), who.clone(), *collection_id, *token_id, amount)?;
 
             // let sended_token = T::NFT::get_nft_token(collection_id.clone(), token_id.clone());
             // let start_idx = sended_token.end_idx.checked_add(1).ok_or(Error::<T>::NumOverflow)?;
@@ -258,6 +259,7 @@ decl_module! {
             }
 
             Self::deposit_event(RawEvent::NonFungibleSold(
+                who,
                 *left_amount
             ));
 
@@ -284,10 +286,10 @@ decl_module! {
             let collection_id = &order.collection_id;
             let token_id = &order.start_idx;
 
-            T::NFT::_transfer_non_fungible(Self::account_id(), who, *collection_id, *token_id, *amount)?;
+            T::NFT::_transfer_non_fungible(Self::account_id(), who.clone(), *collection_id, *token_id, *amount)?;
             NonFungibleOrders::<T>::remove(order_id);
 
-            Self::deposit_event(RawEvent::NonFungibleOrderCanceled(order_id));
+            Self::deposit_event(RawEvent::NonFungibleOrderCanceled(who, order_id));
 
             Ok(())
         }
